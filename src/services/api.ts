@@ -1,0 +1,48 @@
+const BASE_URL = '/api';
+
+export const api = {
+  async get<T>(endpoint: string): Promise<T> {
+    const response = await fetch(`${BASE_URL}${endpoint}`);
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP error ${response.status}`);
+    }
+
+    return response.json();
+  },
+
+  async post<T>(endpoint: string, body: any): Promise<T> {
+    const response = await fetch(`${BASE_URL}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP error ${response.status}`);
+    }
+
+    return response.json();
+  },
+
+  async put<T>(endpoint: string, body: any): Promise<T> {
+    const response = await fetch(`${BASE_URL}${endpoint}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP error ${response.status}`);
+    }
+
+    return response.json();
+  }
+};
