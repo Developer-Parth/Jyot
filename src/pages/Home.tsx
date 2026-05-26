@@ -13,6 +13,7 @@ type HomeData = {
 
 type Panchang = {
   city: string;
+  source?: string;
   tithi: string;
   nakshatra: string;
   samvat: string;
@@ -28,6 +29,7 @@ export default function Home() {
   const [greeting, setGreeting] = useState('');
   const [homeData, setHomeData] = useState<HomeData | null>(null);
   const [panchang, setPanchang] = useState<Panchang | null>(null);
+  const [panchangError, setPanchangError] = useState('');
 
   useEffect(() => {
     const hour = new Date().getHours();
@@ -44,8 +46,9 @@ export default function Home() {
         return api.get<Panchang>(`/panchang?city=${encodeURIComponent(data.user.city || 'India')}`);
       })
       .then(setPanchang)
-      .catch(() => {
+      .catch((error) => {
         setPanchang(null);
+        setPanchangError(error instanceof Error ? error.message : 'Real panchang is unavailable.');
       });
   }, []);
 
@@ -78,6 +81,7 @@ export default function Home() {
             <div>
               <h2 className="text-sm font-bold tracking-widest text-rose-700 uppercase mb-1">Today's Panchang</h2>
               <p className="text-xs text-stone-500 flex items-center gap-1"><MapPin className="w-3 h-3" /> {panchang?.city || city}</p>
+              {panchang?.source && <p className="text-[10px] text-stone-400 mt-1">Source: {panchang.source}</p>}
             </div>
             <div className="p-2 bg-amber-100 rounded-full text-amber-800">
               <Calendar className="w-4 h-4" />
@@ -87,15 +91,20 @@ export default function Home() {
           <div className="grid grid-cols-2 gap-4 mb-4">
             <div>
               <p className="text-xs text-stone-500 mb-0.5">Tithi</p>
-              <p className="font-medium text-stone-900 text-sm">{panchang?.tithi || 'Loading...'}</p>
+              <p className="font-medium text-stone-900 text-sm">{panchang?.tithi || (panchangError ? 'Unavailable' : 'Loading...')}</p>
             </div>
             <div>
               <p className="text-xs text-stone-500 mb-0.5">Nakshatra</p>
-              <p className="font-medium text-stone-900 text-sm">{panchang?.nakshatra || 'Loading...'}</p>
+              <p className="font-medium text-stone-900 text-sm">{panchang?.nakshatra || (panchangError ? 'Unavailable' : 'Loading...')}</p>
             </div>
           </div>
 
           <p className="text-xs text-amber-900 bg-amber-100/70 rounded-xl px-3 py-2 mb-4">{panchang?.samvat || 'Vikram Samvat'}</p>
+          {panchangError && (
+            <p className="text-xs text-rose-800 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2 mb-4">
+              Real panchang is not configured yet. Add `TATHAASTU_API_KEY` or `DEVDARSHA_API_KEY` in `.env`.
+            </p>
+          )}
 
           <div className="flex items-center gap-4 py-3 border-y border-amber-200/70 mb-4">
             <div className="flex-1 flex items-center gap-2">

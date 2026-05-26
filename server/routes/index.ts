@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { PalmReadingController } from '../controllers/PalmReadingController.js';
 import db from '../db/index.js';
+import { PanchangService } from '../services/PanchangService.js';
 
 const router = Router();
 
@@ -117,34 +118,17 @@ router.put('/jaap/:userId', (req, res) => {
   res.json(jaap);
 });
 
-router.get('/panchang', (req, res) => {
-  const city = String(req.query.city || 'Your city');
-  const now = new Date();
-  const day = now.getDate();
-  const festivalDate = (daysLeft: number) => {
-    const date = new Date(now);
-    date.setDate(date.getDate() + daysLeft);
-    return date.toLocaleString('en-IN', { month: 'short', day: 'numeric' });
-  };
-  const nakshatras = ['Ashwini', 'Bharani', 'Krittika', 'Rohini', 'Mrigashira', 'Ardra', 'Punarvasu', 'Pushya', 'Ashlesha', 'Magha', 'Purva Phalguni', 'Uttara Phalguni'];
-  const tithis = ['Pratipada', 'Dwitiya', 'Tritiya', 'Chaturthi', 'Panchami', 'Shashthi', 'Saptami', 'Ashtami', 'Navami', 'Dashami', 'Ekadashi', 'Dwadashi', 'Trayodashi', 'Chaturdashi', 'Purnima'];
-
-  res.json({
-    city,
-    tithi: `${day <= 15 ? 'Shukla' : 'Krishna'} Paksha ${tithis[(day - 1) % tithis.length]}`,
-    nakshatra: nakshatras[(day + now.getMonth()) % nakshatras.length],
-    samvat: `Vikram Samvat ${now.getFullYear() + 57}`,
-    sunrise: '05:46 AM',
-    sunset: '07:08 PM',
-    brahmaMuhurta: '04:09 AM - 04:53 AM',
-    abhijitMuhurta: '11:58 AM - 12:51 PM',
-    rahuKaal: ['07:30 AM - 09:00 AM', '03:00 PM - 04:30 PM', '10:30 AM - 12:00 PM'][now.getDay() % 3],
-    festivals: [
-      { name: 'Ganga Dussehra', date: festivalDate(3), daysLeft: 3 },
-      { name: 'Nirjala Ekadashi', date: festivalDate(7), daysLeft: 7 },
-      { name: 'Guru Purnima', date: festivalDate(14), daysLeft: 14 }
-    ]
-  });
+router.get('/panchang', async (req, res) => {
+  try {
+    const city = String(req.query.city || 'Varanasi');
+    const lang = req.query.lang === 'hi' ? 'hi' : 'en';
+    const panchang = await PanchangService.getDailyPanchang({ city, lang });
+    res.json(panchang);
+  } catch (error) {
+    res.status(503).json({
+      error: error instanceof Error ? error.message : 'Real panchang unavailable.'
+    });
+  }
 });
 
 router.post('/subscriptions', (req, res) => {
