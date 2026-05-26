@@ -102,7 +102,7 @@ export default function Home() {
           <p className="text-xs text-amber-900 bg-amber-100/70 rounded-xl px-3 py-2 mb-4">{panchang?.samvat || 'Vikram Samvat'}</p>
           {panchangError && (
             <p className="text-xs text-rose-800 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2 mb-4">
-              Real panchang is not configured yet. Add `TATHAASTU_API_KEY` or `DEVDARSHA_API_KEY` in `.env`.
+              Offline panchang calculation is unavailable right now. Please try again after restarting the server.
             </p>
           )}
 

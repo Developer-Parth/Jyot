@@ -1,5 +1,4 @@
-import dotenv from 'dotenv';
-dotenv.config();
+import { MhahPanchang } from 'mhah-panchang';
 
 type PanchangRequest = {
   city: string;
@@ -27,170 +26,253 @@ type PanchangResponse = {
   festivals: Festival[];
 };
 
-const cityCoordinates: Record<string, { lat: number; lon: number; timezone: string; cityId: string }> = {
-  varanasi: { lat: 25.3176, lon: 82.9739, timezone: 'Asia/Kolkata', cityId: 'varanasi' },
-  delhi: { lat: 28.6139, lon: 77.2090, timezone: 'Asia/Kolkata', cityId: 'delhi' },
-  'new delhi': { lat: 28.6139, lon: 77.2090, timezone: 'Asia/Kolkata', cityId: 'delhi' },
-  mumbai: { lat: 19.0760, lon: 72.8777, timezone: 'Asia/Kolkata', cityId: 'mumbai' },
-  pune: { lat: 18.5204, lon: 73.8567, timezone: 'Asia/Kolkata', cityId: 'pune' },
-  ujjain: { lat: 23.1765, lon: 75.7885, timezone: 'Asia/Kolkata', cityId: 'ujjain' },
-  jaipur: { lat: 26.9124, lon: 75.7873, timezone: 'Asia/Kolkata', cityId: 'jaipur' },
-  lucknow: { lat: 26.8467, lon: 80.9462, timezone: 'Asia/Kolkata', cityId: 'lucknow' },
-  bengaluru: { lat: 12.9716, lon: 77.5946, timezone: 'Asia/Kolkata', cityId: 'bangalore' },
-  bangalore: { lat: 12.9716, lon: 77.5946, timezone: 'Asia/Kolkata', cityId: 'bangalore' },
-  chennai: { lat: 13.0827, lon: 80.2707, timezone: 'Asia/Kolkata', cityId: 'chennai' },
-  kolkata: { lat: 22.5726, lon: 88.3639, timezone: 'Asia/Kolkata', cityId: 'kolkata' },
-  hyderabad: { lat: 17.3850, lon: 78.4867, timezone: 'Asia/Kolkata', cityId: 'hyderabad' }
+type LocationInfo = {
+  lat: number;
+  lon: number;
+  timezone: string;
 };
 
-const today = () => new Date().toISOString().slice(0, 10);
+type CalendarResult = {
+  Tithi: { ino: number; name_en_IN?: string };
+  Paksha: { ino: number; name_en_IN?: string };
+  Nakshatra: { name_en_IN?: string };
+  Yoga: { name_en_IN?: string };
+  Karna: { name_en_IN?: string };
+  Masa?: { name_en_IN?: string };
+  MoonMasa?: { name_en_IN?: string; isLeapMonth?: boolean };
+};
 
-const isUsableKey = (value?: string) => Boolean(value && !value.includes('replace_with') && value.trim().length > 8);
+const cityCoordinates: Record<string, LocationInfo> = {
+  varanasi: { lat: 25.3176, lon: 82.9739, timezone: 'Asia/Kolkata' },
+  delhi: { lat: 28.6139, lon: 77.2090, timezone: 'Asia/Kolkata' },
+  'new delhi': { lat: 28.6139, lon: 77.2090, timezone: 'Asia/Kolkata' },
+  mumbai: { lat: 19.0760, lon: 72.8777, timezone: 'Asia/Kolkata' },
+  pune: { lat: 18.5204, lon: 73.8567, timezone: 'Asia/Kolkata' },
+  ujjain: { lat: 23.1765, lon: 75.7885, timezone: 'Asia/Kolkata' },
+  jaipur: { lat: 26.9124, lon: 75.7873, timezone: 'Asia/Kolkata' },
+  lucknow: { lat: 26.8467, lon: 80.9462, timezone: 'Asia/Kolkata' },
+  bengaluru: { lat: 12.9716, lon: 77.5946, timezone: 'Asia/Kolkata' },
+  bangalore: { lat: 12.9716, lon: 77.5946, timezone: 'Asia/Kolkata' },
+  chennai: { lat: 13.0827, lon: 80.2707, timezone: 'Asia/Kolkata' },
+  kolkata: { lat: 22.5726, lon: 88.3639, timezone: 'Asia/Kolkata' },
+  hyderabad: { lat: 17.3850, lon: 78.4867, timezone: 'Asia/Kolkata' },
+  ahmedabad: { lat: 23.0225, lon: 72.5714, timezone: 'Asia/Kolkata' },
+  patna: { lat: 25.5941, lon: 85.1376, timezone: 'Asia/Kolkata' }
+};
+
+const tithiHi: Record<string, string> = {
+  Pratipada: 'प्रतिपदा',
+  Dwitiya: 'द्वितीया',
+  Tritiya: 'तृतीया',
+  Chaturthi: 'चतुर्थी',
+  Panchami: 'पंचमी',
+  Sasthi: 'षष्ठी',
+  Saptami: 'सप्तमी',
+  Astami: 'अष्टमी',
+  Navami: 'नवमी',
+  Dasami: 'दशमी',
+  Ekadasi: 'एकादशी',
+  Dvadasi: 'द्वादशी',
+  Trayodasi: 'त्रयोदशी',
+  Chaturdasi: 'चतुर्दशी',
+  Punnami: 'पूर्णिमा',
+  Purnima: 'पूर्णिमा',
+  Padyami: 'प्रतिपदा',
+  Vidhiya: 'द्वितीया',
+  Thadiya: 'तृतीया',
+  Chaviti: 'चतुर्थी',
+  Shasti: 'षष्ठी',
+  Sapthami: 'सप्तमी',
+  Amavasya: 'अमावस्या'
+};
+
+const pakshaHi: Record<string, string> = {
+  Shukla: 'शुक्ल',
+  Krishna: 'कृष्ण'
+};
 
 const normalizeCity = (city: string) => city.trim().toLowerCase();
 
-const locationFor = async (city: string) => {
-  const known = cityCoordinates[normalizeCity(city)];
-  if (known) return known;
+const locationFor = (city: string) => cityCoordinates[normalizeCity(city)] || cityCoordinates.varanasi;
 
-  const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(city)}`, {
-    headers: { 'User-Agent': 'Jyot/1.0 (https://github.com/Developer-Parth/Jyot)' }
-  });
-  if (!response.ok) throw new Error('Unable to resolve city coordinates');
+const panchang = new MhahPanchang();
 
-  const results = await response.json() as Array<{ lat: string; lon: string }>;
-  if (!results[0]) throw new Error('City not found for panchang lookup');
+const localDateParts = (timezone: string, date = new Date()) => {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
 
   return {
-    lat: Number(results[0].lat),
-    lon: Number(results[0].lon),
-    timezone: 'Asia/Kolkata',
-    cityId: normalizeCity(city).replace(/\s+/g, '-')
+    year: Number(parts.find((part) => part.type === 'year')?.value),
+    month: Number(parts.find((part) => part.type === 'month')?.value),
+    day: Number(parts.find((part) => part.type === 'day')?.value)
   };
 };
 
-const daysLeft = (dateText: string) => {
-  const date = new Date(dateText);
-  if (Number.isNaN(date.getTime())) return 0;
-  return Math.max(0, Math.ceil((date.getTime() - Date.now()) / 86400000));
+const todayTimerDate = (timezone: string) => {
+  const { year, month, day } = localDateParts(timezone);
+  return new Date(Date.UTC(year, month - 1, day, 12));
 };
 
-const asText = (...values: unknown[]) => {
-  for (const value of values) {
-    if (typeof value === 'string' && value.trim()) return value;
-    if (value && typeof value === 'object' && 'name' in value && typeof (value as { name?: unknown }).name === 'string') {
-      return (value as { name: string }).name;
+const todayCalendarDate = (timezone: string) => {
+  const { year, month, day } = localDateParts(timezone);
+  return new Date(Date.UTC(year, month - 1, day, 18, 30));
+};
+
+const today = () => {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 12));
+};
+
+const addDays = (date: Date, days: number) => {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+};
+
+const formatTime = (date: Date | string, timezone: string) => {
+  return new Intl.DateTimeFormat('en-IN', {
+    timeZone: timezone,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  }).format(new Date(date));
+};
+
+const formatDate = (date: Date, timezone: string) => {
+  return new Intl.DateTimeFormat('en-IN', {
+    timeZone: timezone,
+    day: 'numeric',
+    month: 'short'
+  }).format(date);
+};
+
+const rangeText = (start: Date, end: Date, timezone: string) => `${formatTime(start, timezone)} - ${formatTime(end, timezone)}`;
+
+const cleanTithi = (name = '') => name.trim();
+
+const normalizeTithiForFestival = (name = '') => cleanTithi(name).toLowerCase();
+
+const tithiAlias: Record<string, string> = {
+  punnami: 'purnima',
+  pournami: 'purnima',
+  padyami: 'pratipada',
+  vidiya: 'dwitiya',
+  vidhiya: 'dwitiya',
+  thadiya: 'tritiya',
+  tadiya: 'tritiya',
+  chavithi: 'chaturthi',
+  chaviti: 'chaturthi',
+  shasti: 'sasthi',
+  sapthami: 'saptami',
+  ashtami: 'astami',
+  dwadasi: 'dvadasi'
+};
+
+const canonicalTithi = (name = '') => {
+  const normalized = normalizeTithiForFestival(name);
+  return tithiAlias[normalized] || normalized;
+};
+
+const translateTithi = (name: string, lang: 'en' | 'hi') => lang === 'hi' ? tithiHi[name] || name : name;
+
+const translatePaksha = (name: string, lang: 'en' | 'hi') => lang === 'hi' ? pakshaHi[name] || name : name;
+
+const getRahuKaal = (sunrise: Date, sunset: Date, weekday: number, timezone: string) => {
+  const orderByDay = [8, 2, 7, 5, 6, 4, 3];
+  const segment = orderByDay[weekday] - 1;
+  const dayLength = sunset.getTime() - sunrise.getTime();
+  const segmentLength = dayLength / 8;
+  const start = new Date(sunrise.getTime() + segment * segmentLength);
+  const end = new Date(start.getTime() + segmentLength);
+  return rangeText(start, end, timezone);
+};
+
+const getFestivalName = (cal: CalendarResult) => {
+  const tithi = canonicalTithi(cal.Tithi?.name_en_IN);
+  const paksha = cal.Paksha?.name_en_IN || '';
+  const masa = cal.MoonMasa?.name_en_IN || cal.Masa?.name_en_IN || '';
+  const shukla = paksha === 'Shukla';
+  const krishna = paksha === 'Krishna';
+  const names: string[] = [];
+
+  if (tithi === 'ekadasi') names.push('Ekadashi');
+  if (tithi === 'purnima') names.push('Purnima');
+  if (tithi === 'amavasya') names.push('Amavasya');
+  if (tithi === 'trayodasi') names.push('Pradosh Vrat');
+  if (krishna && tithi === 'chaturthi') names.push('Sankashti Chaturthi');
+  if (krishna && tithi === 'chaturdasi') names.push('Masik Shivaratri');
+
+  if (masa === 'Chaitra' && shukla && tithi === 'navami') names.push('Rama Navami');
+  if (masa === 'Vaisakha' && shukla && tithi === 'tritiya') names.push('Akshaya Tritiya');
+  if (masa === 'Ashadha' && tithi === 'purnima') names.push('Guru Purnima');
+  if (masa === 'Bhadrapada' && krishna && tithi === 'astami') names.push('Krishna Janmashtami');
+  if (masa === 'Bhadrapada' && shukla && tithi === 'chaturthi') names.push('Ganesh Chaturthi');
+  if (masa === 'Ashwin' && shukla && tithi === 'pratipada') names.push('Shardiya Navratri Begins');
+  if (masa === 'Ashwin' && shukla && tithi === 'dasami') names.push('Vijaya Dashami');
+  if (masa === 'Kartika' && tithi === 'amavasya') names.push('Diwali');
+  if (masa === 'Phalguna' && tithi === 'purnima') names.push('Holi');
+  if (masa === 'Phalguna' && krishna && tithi === 'chaturdasi') names.push('Maha Shivaratri');
+
+  return names[0];
+};
+
+const upcomingFestivals = (startCalendarDate: Date, startDisplayDate: Date, location: LocationInfo) => {
+  const events = new Map<string, Festival>();
+
+  for (let offset = 0; offset <= 120 && events.size < 8; offset += 1) {
+    const calendarDate = addDays(startCalendarDate, offset);
+    const displayDate = addDays(startDisplayDate, offset);
+    const cal = panchang.calendar(calendarDate, location.lat, location.lon) as CalendarResult;
+    const name = getFestivalName(cal);
+    if (!name) continue;
+
+    const key = `${name}-${formatDate(displayDate, location.timezone)}`;
+    if (!events.has(key)) {
+      events.set(key, {
+        name,
+        date: formatDate(displayDate, location.timezone),
+        daysLeft: offset
+      });
     }
   }
-  return '';
-};
 
-const normalizeFestivals = (input: unknown): Festival[] => {
-  if (!Array.isArray(input)) return [];
-  return input.slice(0, 8).map((festival) => {
-    if (typeof festival === 'string') {
-      return { name: festival, date: today(), daysLeft: 0 };
-    }
-    const item = festival as Record<string, unknown>;
-    const date = asText(item.date, item.event_date, item.start_date) || today();
-    return {
-      name: asText(item.name, item.title) || 'Festival',
-      date,
-      daysLeft: typeof item.daysLeft === 'number' ? item.daysLeft : daysLeft(date)
-    };
-  });
-};
-
-const fromTathaAstu = async ({ city, lang }: PanchangRequest): Promise<PanchangResponse> => {
-  if (!isUsableKey(process.env.TATHAASTU_API_KEY)) throw new Error('TathaAstu API key missing');
-
-  const location = await locationFor(city);
-  const date = today();
-  const url = new URL('https://api.tathaastuapi.com/v1/panchang');
-  url.searchParams.set('date', date);
-  url.searchParams.set('lat', String(location.lat));
-  url.searchParams.set('lon', String(location.lon));
-  url.searchParams.set('lang', lang || 'en');
-
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${process.env.TATHAASTU_API_KEY}` }
-  });
-  if (!response.ok) throw new Error(`TathaAstu returned ${response.status}`);
-
-  const raw = await response.json() as Record<string, any>;
-  const data = raw.data || raw;
-  const muhurat = data.muhurat || data.muhurta || {};
-
-  return {
-    city,
-    source: 'TathaAstu API',
-    date,
-    tithi: [asText(data.tithi), asText(data.tithi?.paksha)].filter(Boolean).join(' ') || 'Unavailable',
-    nakshatra: asText(data.nakshatra) || 'Unavailable',
-    samvat: asText(data.samvat, data.vikram_samvat, data.hindu_year) || 'Unavailable',
-    sunrise: asText(data.sunrise, data.sun?.rise) || 'Unavailable',
-    sunset: asText(data.sunset, data.sun?.set) || 'Unavailable',
-    brahmaMuhurta: asText(muhurat.brahma, muhurat.brahma_muhurta, data.brahma_muhurta) || 'Unavailable',
-    abhijitMuhurta: asText(muhurat.abhijit, muhurat.abhijit_muhurta, data.abhijit_muhurta) || 'Unavailable',
-    rahuKaal: asText(data.rahu_kaal, data.rahukaal, data.rahuKaal) || 'Unavailable',
-    festivals: normalizeFestivals(data.festivals || data.events)
-  };
-};
-
-const fromDevDarsha = async ({ city }: PanchangRequest): Promise<PanchangResponse> => {
-  if (!isUsableKey(process.env.DEVDARSHA_API_KEY)) throw new Error('DevDarsha API key missing');
-
-  const location = await locationFor(city);
-  const date = today();
-  const response = await fetch('https://panchang.devdarsha.com/v1/panchang/daily', {
-    method: 'POST',
-    headers: {
-      'X-API-Key': process.env.DEVDARSHA_API_KEY || '',
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      date,
-      city_id: location.cityId,
-      lat: location.lat,
-      lon: location.lon,
-      timezone: location.timezone,
-      faith_filter: 'hindu'
-    })
-  });
-  if (!response.ok) throw new Error(`DevDarsha returned ${response.status}`);
-
-  const raw = await response.json() as Record<string, any>;
-  const data = raw.data || raw;
-  const muhurat = data.muhurat || {};
-
-  return {
-    city,
-    source: 'DevDarsha API',
-    date,
-    tithi: [asText(data.tithi), asText(data.tithi?.paksha)].filter(Boolean).join(' ') || 'Unavailable',
-    nakshatra: asText(data.nakshatra) || 'Unavailable',
-    samvat: asText(data.samvat, data.vikram_samvat) || 'Unavailable',
-    sunrise: asText(data.sunrise) || 'Unavailable',
-    sunset: asText(data.sunset) || 'Unavailable',
-    brahmaMuhurta: asText(muhurat.brahma, data.brahma_muhurta) || 'Unavailable',
-    abhijitMuhurta: asText(muhurat.abhijit, data.abhijit_muhurta) || 'Unavailable',
-    rahuKaal: asText(data.rahu_kaal, data.rahukaal) || 'Unavailable',
-    festivals: normalizeFestivals(data.festivals)
-  };
+  return Array.from(events.values());
 };
 
 export class PanchangService {
-  static async getDailyPanchang(request: PanchangRequest): Promise<PanchangResponse> {
-    const errors: string[] = [];
+  static async getDailyPanchang({ city, lang = 'en' }: PanchangRequest): Promise<PanchangResponse> {
+    const location = locationFor(city);
+    const timerDate = todayTimerDate(location.timezone);
+    const calendarDate = todayCalendarDate(location.timezone);
+    const cal = panchang.calendar(calendarDate, location.lat, location.lon) as CalendarResult;
+    const timers = panchang.sunTimer(timerDate, location.lat, location.lon) as Record<string, string>;
+    const sunrise = new Date(timers.sunRise);
+    const sunset = new Date(timers.sunSet);
+    const noon = new Date((sunrise.getTime() + sunset.getTime()) / 2);
+    const brahmaStart = new Date(sunrise.getTime() - 96 * 60000);
+    const brahmaEnd = new Date(sunrise.getTime() - 48 * 60000);
+    const abhijitStart = new Date(noon.getTime() - 24 * 60000);
+    const abhijitEnd = new Date(noon.getTime() + 24 * 60000);
+    const tithiName = cleanTithi(cal.Tithi?.name_en_IN || 'Unavailable');
+    const pakshaName = cal.Paksha?.name_en_IN || '';
 
-    for (const provider of [fromTathaAstu, fromDevDarsha]) {
-      try {
-        return await provider(request);
-      } catch (error) {
-        errors.push(error instanceof Error ? error.message : 'Unknown panchang provider error');
-      }
-    }
-
-    throw new Error(`Real panchang unavailable. Configure TATHAASTU_API_KEY or DEVDARSHA_API_KEY. Details: ${errors.join('; ')}`);
+    return {
+      city,
+      source: 'Offline Panchang Engine (mhah-panchang)',
+      date: timerDate.toISOString().slice(0, 10),
+      tithi: `${translatePaksha(pakshaName, lang)} Paksha ${translateTithi(tithiName, lang)}`.trim(),
+      nakshatra: cal.Nakshatra?.name_en_IN || 'Unavailable',
+      samvat: `Vikram Samvat ${timerDate.getUTCFullYear() + 57}`,
+      sunrise: formatTime(sunrise, location.timezone),
+      sunset: formatTime(sunset, location.timezone),
+      brahmaMuhurta: rangeText(brahmaStart, brahmaEnd, location.timezone),
+      abhijitMuhurta: rangeText(abhijitStart, abhijitEnd, location.timezone),
+      rahuKaal: getRahuKaal(sunrise, sunset, timerDate.getUTCDay(), location.timezone),
+      festivals: upcomingFestivals(calendarDate, timerDate, location)
+    };
   }
 }

@@ -5,8 +5,8 @@ Jyot is a full-stack spiritual companion app for daily practice, puja guidance, 
 ## Features
 
 - Profile-based login with name, phone, city, birth date, deity, and gotra.
-- Daily home dashboard with user greeting, streak, panchang-style daily timings, and upcoming festival cards.
-- Real panchang support through TathaAstu or DevDarsha API keys. The app does not invent fallback Hindu dates.
+- Daily home dashboard with user greeting, streak, offline panchang calculations, and upcoming vrat/festival cards.
+- Panchang runs without a paid API using `mhah-panchang` for tithi, paksha, nakshatra, yoga, karana, lunar month, sunrise, and sunset calculations.
 - Digital jaap mala with saved mantra, goal, count, completed sessions, vibration, autoplay counting, and chant playback.
 - AI palm reading powered by Gemini with automatic API-key failover.
 - Puja library with English and Hindi content, search, filters, detailed vidhi, samagri checklist, chant playback, and Amazon search links for each item.
@@ -36,13 +36,11 @@ npm install
 GEMINI_API_KEY=your_primary_key
 GEMINI_API_KEY_1=your_backup_key_1
 GEMINI_API_KEY_2=your_backup_key_2
-TATHAASTU_API_KEY=your_tathaastu_key
-DEVDARSHA_API_KEY=your_devdarsha_key
 ```
 
 The backend tries the primary key first, then keys 1 through 10.
 
-For accurate panchang and festival data, add either `TATHAASTU_API_KEY` or `DEVDARSHA_API_KEY`. Without one of these keys, the home page shows a setup notice instead of fake tithi/festival dates.
+Panchang does not require API keys. It is calculated offline from the user's city coordinates. For exact temple-grade decisions, users should still cross-check with a local published panchang because regional observance rules can differ.
 
 3. Create or migrate the SQLite database:
 
