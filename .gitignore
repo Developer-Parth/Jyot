@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .env
+.env.example
 database.sqlite
 *.log
 .DS_Store
