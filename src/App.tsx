@@ -16,6 +16,7 @@ import Onboarding from './pages/Onboarding';
 import Login from './pages/Login';
 import Subscription from './pages/Subscription';
 import LiveBackground from './components/LiveBackground';
+import { Analytics } from "@vercel/analytics/next"
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
