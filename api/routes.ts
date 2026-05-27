@@ -1,7 +1,9 @@
+console.log('[BOOT] api/routes.ts loaded');
+
 import { Router, Request, Response, NextFunction } from 'express';
-import { PalmReadingController } from './controllers/PalmReadingController';
-import store from './storage';
-import { PanchangService } from './services/PanchangService';
+import { PalmReadingController } from './controllers/PalmReadingController.js';
+import store from './storage.js';
+import { PanchangService } from './services/PanchangService.js';
 
 const router = Router();
 

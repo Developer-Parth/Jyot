@@ -1,3 +1,5 @@
+console.log('[BOOT] api/storage.ts loaded');
+
 import fs from 'fs/promises';
 import { readFileSync, existsSync, mkdirSync, writeFileSync, unlinkSync } from 'fs';
 import path from 'path';
@@ -19,15 +21,22 @@ class JsonStore {
   private cache = new Map<string, CollectionFile>();
 
   initSync() {
+    console.log('[STORE] initSync DATA_DIR=' + DATA_DIR);
     if (!existsSync(DATA_DIR)) {
-      mkdirSync(DATA_DIR, { recursive: true });
+      try {
+        mkdirSync(DATA_DIR, { recursive: true });
+        console.log('[STORE] created directory');
+      } catch (e: any) {
+        console.error('[STORE] mkdir FAILED:', e?.message);
+      }
     }
     try {
       const probePath = path.join(DATA_DIR, '.probe');
       writeFileSync(probePath, 'ok');
       unlinkSync(probePath);
+      console.log('[STORE] directory probe OK');
     } catch (e: any) {
-      console.error('[STORAGE] Directory probe FAILED:', e?.message);
+      console.error('[STORE] Directory probe FAILED:', e?.message);
     }
   }
 
@@ -45,8 +54,10 @@ class JsonStore {
         nextId: parsed.nextId ?? 1,
         items: parsed.items ?? [],
       });
+      console.log(`[STORE] loaded ${name} (${parsed.items.length} items)`);
     } else {
       this.cache.set(name, { nextId: 1, items: [] });
+      console.log(`[STORE] initialized empty ${name}`);
     }
   }
 

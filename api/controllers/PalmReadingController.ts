@@ -1,17 +1,19 @@
+console.log('[BOOT] api/controllers/PalmReadingController.ts loaded');
+
 import { Request, Response } from 'express';
-import { AiService } from '../services/AiService';
-import { ReadingModel } from '../models/Reading';
+import { AiService } from '../services/AiService.js';
+import { ReadingModel } from '../models/Reading.js';
 
 export class PalmReadingController {
   static async readPalm(req: Request, res: Response) {
     try {
       const { imageBase64 } = req.body;
       if (!imageBase64) {
-        res.status(400).json({ error: "Image data is required" });
+        res.status(400).json({ error: 'Image data is required' });
         return;
       }
 
-      const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+      const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
 
       const reading = await AiService.getPalmReading(base64Data);
 
@@ -19,8 +21,8 @@ export class PalmReadingController {
 
       res.json({ reading });
     } catch (error) {
-      console.error("Palm reading error:", error);
-      res.status(500).json({ error: "Failed to read palm. Please try another image." });
+      console.error('Palm reading error:', error);
+      res.status(500).json({ error: 'Failed to read palm. Please try another image.' });
     }
   }
 }

@@ -1,6 +1,13 @@
-import { GoogleGenAI } from "@google/genai";
+console.log('[BOOT] api/services/AiService.ts loaded');
+
+import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
-dotenv.config();
+try {
+  dotenv.config();
+  console.log('[AI] dotenv.config() OK');
+} catch (e: any) {
+  console.error('[AI] dotenv.config() FAILED:', e?.message);
+}
 
 const geminiKeys = [
   process.env.GEMINI_API_KEY,
@@ -17,11 +24,13 @@ const geminiKeys = [
   ...(process.env.GEMINI_API_KEYS || '').split(',')
 ].map((key) => key?.trim()).filter(Boolean) as string[];
 
+console.log(`[AI] geminiKeys count: ${geminiKeys.length}`);
+
 const getClient = (apiKey: string) => new GoogleGenAI({
   apiKey,
   httpOptions: {
     headers: {
-      "User-Agent": "jyot-spiritual-guide",
+      'User-Agent': 'jyot-spiritual-guide',
     },
   },
 });
@@ -29,18 +38,18 @@ const getClient = (apiKey: string) => new GoogleGenAI({
 export class AiService {
   static async getPalmReading(base64Data: string): Promise<string> {
     if (geminiKeys.length === 0) {
-      throw new Error("No Gemini API keys configured");
+      throw new Error('No Gemini API keys configured');
     }
 
     const imagePart = {
       inlineData: {
-        mimeType: "image/jpeg",
+        mimeType: 'image/jpeg',
         data: base64Data,
       },
     };
 
     const textPart = {
-      text: "Analyze this palm image based on Vedic astrology and palmistry principles. Please provide a respectful, positive, but detailed reading covering Life Line, Heart Line, Head Line, and Fate Line. Offer practical insights about the user's future, career, and emotional well-being. Make it engaging, mystical yet modern, and format the output beautifully using Markdown. Include a gentle disclaimer that this is spiritual guidance, not a guaranteed prediction.",
+      text: 'Analyze this palm image based on Vedic astrology and palmistry principles. Please provide a respectful, positive, but detailed reading covering Life Line, Heart Line, Head Line, and Fate Line. Offer practical insights about the user\'s future, career, and emotional well-being. Make it engaging, mystical yet modern, and format the output beautifully using Markdown. Include a gentle disclaimer that this is spiritual guidance, not a guaranteed prediction.',
     };
 
     let lastError: unknown;
@@ -48,7 +57,7 @@ export class AiService {
     for (const apiKey of geminiKeys) {
       try {
         const aiResponse = await getClient(apiKey).models.generateContent({
-          model: "gemini-2.5-flash",
+          model: 'gemini-2.5-flash',
           contents: { parts: [imagePart, textPart] },
         });
 
@@ -56,12 +65,12 @@ export class AiService {
           return aiResponse.text;
         }
 
-        lastError = new Error("No response from AI");
+        lastError = new Error('No response from AI');
       } catch (error) {
         lastError = error;
       }
     }
 
-    throw lastError instanceof Error ? lastError : new Error("All Gemini API keys failed");
+    throw lastError instanceof Error ? lastError : new Error('All Gemini API keys failed');
   }
 }

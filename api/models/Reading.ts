@@ -1,4 +1,6 @@
-import store from '../storage';
+console.log('[BOOT] api/models/Reading.ts loaded');
+
+import store from '../storage.js';
 
 export interface Reading {
   id?: number;

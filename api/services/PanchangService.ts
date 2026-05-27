@@ -1,3 +1,5 @@
+console.log('[BOOT] api/services/PanchangService.ts loaded');
+
 import { MhahPanchang } from 'mhah-panchang';
 
 type PanchangRequest = {
@@ -95,7 +97,13 @@ const normalizeCity = (city: string) => city.trim().toLowerCase();
 
 const locationFor = (city: string) => cityCoordinates[normalizeCity(city)] || cityCoordinates.varanasi;
 
-const panchang = new MhahPanchang();
+let panchang: MhahPanchang;
+try {
+  panchang = new MhahPanchang();
+  console.log('[PANCHANG] MhahPanchang constructed OK');
+} catch (e: any) {
+  console.error('[PANCHANG] MhahPanchang construction FAILED:', e?.message);
+}
 
 const localDateParts = (timezone: string, date = new Date()) => {
   const parts = new Intl.DateTimeFormat('en-CA', {
