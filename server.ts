@@ -45,10 +45,11 @@ export async function createApp() {
 }
 
 // Local dev: start listening. On Vercel: just export the app.
-if (!isVercel) {
+async function startDev() {
   const PORT = parseInt(process.env.PORT || '3000', 10);
-  const tryPort = async (port: number): Promise<void> => {
-    const app = await createApp();
+  const app = await createApp();
+
+  const tryListen = (port: number) => {
     const server = app.listen(port, "0.0.0.0", () => {
       console.log(`Server running on http://localhost:${port}`);
     });
@@ -56,14 +57,19 @@ if (!isVercel) {
       if (err.code === 'EADDRINUSE') {
         console.log(`Port ${port} in use, trying ${port + 1}...`);
         server.close();
-        tryPort(port + 1);
+        tryListen(port + 1);
       } else {
         console.error('Failed to start server', err);
         process.exit(1);
       }
     });
   };
-  tryPort(PORT).catch((err) => {
+
+  tryListen(PORT);
+}
+
+if (!isVercel) {
+  startDev().catch((err) => {
     console.error("Failed to start server", err);
     process.exit(1);
   });

@@ -1,5 +1,11 @@
-import { createApp } from '../server.js';
+import type { Express } from 'express';
+import { createApp } from '../server';
 
-const app = await createApp();
+let app: Express;
 
-export default app;
+export default async function handler(req: any, res: any) {
+  if (!app) {
+    app = await createApp();
+  }
+  app(req, res);
+}
