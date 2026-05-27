@@ -1,4 +1,4 @@
-import { createAppSync } from '../server/app';
+import { createAppSync } from './app';
 
 const app = createAppSync();
 

@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { PalmReadingController } from '../controllers/PalmReadingController';
-import store from '../storage';
-import { PanchangService } from '../services/PanchangService';
+import { PalmReadingController } from './controllers/PalmReadingController';
+import store from './storage';
+import { PanchangService } from './services/PanchangService';
 
 const router = Router();
 
@@ -39,7 +39,6 @@ const getCurrentSubscription = (userId: number) => {
 };
 
 router.post('/auth/login', asyncHandler(async (req, res) => {
-  console.log('[LOGIN] handler started, body:', JSON.stringify(req.body).slice(0, 200));
   try {
     const { name, phone, city, birthDate, deity, gotra } = req.body;
     if (!name || !phone || !city) {
@@ -48,9 +47,7 @@ router.post('/auth/login', asyncHandler(async (req, res) => {
     }
 
     const email = `${String(phone).replace(/\D/g, '')}@jyot.local`;
-    console.log('[LOGIN] looking up user by phone/email:', phone, email);
     let user = store.findOne<any>('users', u => u.phone === phone || u.email === email);
-    console.log('[LOGIN] existing user:', user ? `id=${user.id}` : 'none');
 
     if (user) {
       await store.update('users', user.id, {
@@ -59,7 +56,6 @@ router.post('/auth/login', asyncHandler(async (req, res) => {
         deity: deity || 'Shiva',
         gotra: gotra || '',
       });
-      console.log('[LOGIN] updated user', user.id);
     } else {
       const newUser = await store.create('users', {
         email,
@@ -70,13 +66,10 @@ router.post('/auth/login', asyncHandler(async (req, res) => {
         gotra: gotra || '',
       });
       user = newUser;
-      console.log('[LOGIN] created user id=', newUser.id);
     }
 
-    console.log('[LOGIN] calling touchStreak for user', user.id);
     await touchStreak(user.id);
     const freshUser = store.getById('users', user.id);
-    console.log('[LOGIN] sending response');
     res.json({
       user: freshUser,
       subscription: getCurrentSubscription(user.id) || { plan: 'seeker', status: 'active' },
@@ -84,7 +77,7 @@ router.post('/auth/login', asyncHandler(async (req, res) => {
   } catch (e: any) {
     console.error('[LOGIN] ERROR:', e?.message || e);
     console.error('[LOGIN] stack:', e?.stack);
-    throw e; // re-throw so asyncHandler can catch it
+    throw e;
   }
 }));
 

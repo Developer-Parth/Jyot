@@ -1,12 +1,11 @@
 import express from "express";
 import path from "path";
-import apiRoutes from './routes/index';
+import apiRoutes from './routes';
 import store from './storage';
 
 const COLLECTIONS = ['users', 'jaaps', 'subscriptions', 'palm_readings'];
-
+  
 export function createAppSync() {
-  console.log('[APP] createAppSync starting, VERCEL=', !!process.env.VERCEL);
   store.initSync();
   store.seed(...COLLECTIONS);
 
@@ -14,7 +13,6 @@ export function createAppSync() {
 
   app.use(express.json({ limit: "50mb" }));
 
-  // Log EVERY request (always enabled for debugging)
   app.use((req, _res, next) => {
     console.log(`[REQ] ${req.method} ${req.url}`);
     next();
@@ -26,15 +24,12 @@ export function createAppSync() {
   app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     console.error('[ERROR] Unhandled error:', err?.message || err);
     console.error('[ERROR] Stack:', err?.stack);
-    console.error('[ERROR] typeof err:', typeof err, 'isError:', err instanceof Error);
     res.status(500).json({
       error: err?.message || 'Internal server error',
-      type: typeof err,
       stack: err?.stack ? err.stack.split('\n').slice(0, 6).join('\n') : 'no stack',
     });
   });
 
-  console.log('[APP] createAppSync done');
   return app;
 }
 

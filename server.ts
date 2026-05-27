@@ -1,4 +1,4 @@
-import { createApp } from './server/app';
+import { createApp } from './api/app';
 
 const isVercel = !!process.env.VERCEL;
 
