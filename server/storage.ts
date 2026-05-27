@@ -1,5 +1,5 @@
 import fs from 'fs/promises';
-import { readFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync, unlinkSync } from 'fs';
 import path from 'path';
 
 const isVercel = !!process.env.VERCEL;
@@ -18,22 +18,31 @@ interface CollectionFile {
 class JsonStore {
   private cache = new Map<string, CollectionFile>();
 
-  /** Synchronous init — runs at module load time (works for Vercel serverless) */
   initSync() {
+    console.log(`[STORAGE] initSync DATA_DIR=${DATA_DIR} exists=${existsSync(DATA_DIR)}`);
     if (!existsSync(DATA_DIR)) {
       mkdirSync(DATA_DIR, { recursive: true });
+      console.log(`[STORAGE] Created directory ${DATA_DIR}`);
+    }
+    // Probe: verify directory is actually writable
+    try {
+      const probePath = path.join(DATA_DIR, '.probe');
+      writeFileSync(probePath, 'ok');
+      unlinkSync(probePath);
+      console.log(`[STORAGE] Directory probe OK`);
+    } catch (e: any) {
+      console.error(`[STORAGE] Directory probe FAILED: ${e?.message}`);
     }
   }
 
-  /** Async init — used during local dev startup */
   async init() {
     await fs.mkdir(DATA_DIR, { recursive: true });
   }
 
-  /** Ensure a collection is loaded into memory. Safe to call multiple times. */
   private ensureLoaded(name: string) {
     if (this.cache.has(name)) return;
     const filePath = path.join(DATA_DIR, `${name}.json`);
+    console.log(`[STORAGE] ensureLoaded ${name} from ${filePath} exists=${existsSync(filePath)}`);
     if (existsSync(filePath)) {
       const raw = readFileSync(filePath, 'utf-8');
       const parsed: CollectionFile = JSON.parse(raw);
@@ -41,29 +50,32 @@ class JsonStore {
         nextId: parsed.nextId ?? 1,
         items: parsed.items ?? [],
       });
+      console.log(`[STORAGE] Loaded ${name}: ${parsed.items?.length || 0} items, nextId=${parsed.nextId}`);
     } else {
       this.cache.set(name, { nextId: 1, items: [] });
+      console.log(`[STORAGE] Created empty collection ${name}`);
     }
   }
 
-  /** Write collection to disk atomically */
   private async flush(name: string) {
     const state = this.cache.get(name);
     if (!state) return;
     const filePath = path.join(DATA_DIR, `${name}.json`);
     const tmpPath = filePath + '.tmp';
+    console.log(`[STORAGE] flush ${name} -> ${filePath}`);
     await fs.writeFile(tmpPath, JSON.stringify(state, null, 2), 'utf-8');
     await fs.rename(tmpPath, filePath);
+    console.log(`[STORAGE] flush ${name} OK`);
   }
 
-  /** Load one or more collections into memory by name */
   seed(...names: string[]) {
+    console.log(`[STORAGE] seeding ${names.length} collections`);
     for (const name of names) {
       this.ensureLoaded(name);
     }
   }
 
-  // ─── Sync reads (from in-memory cache) ───
+  // ─── Sync reads ───
 
   all<T = StoredItem>(name: string): T[] {
     this.ensureLoaded(name);
@@ -85,25 +97,31 @@ class JsonStore {
     return this.cache.get(name)!.items.filter(predicate as any) as T[];
   }
 
-  // ─── Async writes (flush to disk) ───
+  // ─── Async writes ───
 
   async create<T = StoredItem>(name: string, data: Omit<T, 'id' | 'created_at'>): Promise<T & { id: number; created_at: string }> {
+    console.log(`[STORE] create in ${name}`);
     this.ensureLoaded(name);
     const state = this.cache.get(name)!;
     const now = new Date().toISOString();
     const item = { ...data, id: state.nextId++, created_at: now } as any;
     state.items.push(item);
+    console.log(`[STORE] created id=${item.id} in ${name}, flushing...`);
     await this.flush(name);
+    console.log(`[STORE] create ${name} OK`);
     return item;
   }
 
   async update<T = StoredItem>(name: string, id: number, changes: Partial<T>): Promise<T | undefined> {
+    console.log(`[STORE] update ${name} id=${id}`);
     this.ensureLoaded(name);
     const state = this.cache.get(name)!;
     const idx = state.items.findIndex(i => i.id === id);
     if (idx === -1) return undefined;
     state.items[idx] = { ...state.items[idx], ...changes };
+    console.log(`[STORE] updated ${name} id=${id}, flushing...`);
     await this.flush(name);
+    console.log(`[STORE] update ${name} id=${id} OK`);
     return state.items[idx] as T;
   }
 }

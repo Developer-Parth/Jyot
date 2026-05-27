@@ -39,40 +39,53 @@ const getCurrentSubscription = (userId: number) => {
 };
 
 router.post('/auth/login', asyncHandler(async (req, res) => {
-  const { name, phone, city, birthDate, deity, gotra } = req.body;
-  if (!name || !phone || !city) {
-    res.status(400).json({ error: 'Name, phone, and city are required.' });
-    return;
-  }
+  console.log('[LOGIN] handler started, body:', JSON.stringify(req.body).slice(0, 200));
+  try {
+    const { name, phone, city, birthDate, deity, gotra } = req.body;
+    if (!name || !phone || !city) {
+      res.status(400).json({ error: 'Name, phone, and city are required.' });
+      return;
+    }
 
-  const email = `${String(phone).replace(/\D/g, '')}@jyot.local`;
-  let user = store.findOne<any>('users', u => u.phone === phone || u.email === email);
+    const email = `${String(phone).replace(/\D/g, '')}@jyot.local`;
+    console.log('[LOGIN] looking up user by phone/email:', phone, email);
+    let user = store.findOne<any>('users', u => u.phone === phone || u.email === email);
+    console.log('[LOGIN] existing user:', user ? `id=${user.id}` : 'none');
 
-  if (user) {
-    await store.update('users', user.id, {
-      name, phone, city,
-      birth_date: birthDate || '',
-      deity: deity || 'Shiva',
-      gotra: gotra || '',
+    if (user) {
+      await store.update('users', user.id, {
+        name, phone, city,
+        birth_date: birthDate || '',
+        deity: deity || 'Shiva',
+        gotra: gotra || '',
+      });
+      console.log('[LOGIN] updated user', user.id);
+    } else {
+      const newUser = await store.create('users', {
+        email,
+        password_hash: 'local-profile-login',
+        name, phone, city,
+        birth_date: birthDate || '',
+        deity: deity || 'Shiva',
+        gotra: gotra || '',
+      });
+      user = newUser;
+      console.log('[LOGIN] created user id=', newUser.id);
+    }
+
+    console.log('[LOGIN] calling touchStreak for user', user.id);
+    await touchStreak(user.id);
+    const freshUser = store.getById('users', user.id);
+    console.log('[LOGIN] sending response');
+    res.json({
+      user: freshUser,
+      subscription: getCurrentSubscription(user.id) || { plan: 'seeker', status: 'active' },
     });
-  } else {
-    const newUser = await store.create('users', {
-      email,
-      password_hash: 'local-profile-login',
-      name, phone, city,
-      birth_date: birthDate || '',
-      deity: deity || 'Shiva',
-      gotra: gotra || '',
-    });
-    user = newUser;
+  } catch (e: any) {
+    console.error('[LOGIN] ERROR:', e?.message || e);
+    console.error('[LOGIN] stack:', e?.stack);
+    throw e; // re-throw so asyncHandler can catch it
   }
-
-  await touchStreak(user.id);
-  const freshUser = store.getById('users', user.id);
-  res.json({
-    user: freshUser,
-    subscription: getCurrentSubscription(user.id) || { plan: 'seeker', status: 'active' },
-  });
 }));
 
 router.get('/users/:id', asyncHandler(async (req, res) => {
