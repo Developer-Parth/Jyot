@@ -27,10 +27,16 @@ Jyot is a full-stack spiritual companion app for daily practice, puja guidance, 
 1. Install dependencies:
 
 ```bash
+git clone https://github.com/Developer-Parth/Jyot.git
+```
+
+2. Install dependencies:
+
+```bash
 npm install
 ```
 
-2. Create `.env` from `.env.example` and add your Gemini keys:
+3. Create `.env` from `.env.example` and add your Gemini keys:
 
 ```env
 GEMINI_API_KEY=your_primary_key
@@ -42,13 +48,13 @@ The backend tries the primary key first, then keys 1 through 10.
 
 Panchang does not require API keys. It is calculated offline from the user's city coordinates. For exact temple-grade decisions, users should still cross-check with a local published panchang because regional observance rules can differ.
 
-3. Create or migrate the SQLite database:
+4. Create or migrate the SQLite database:
 
 ```bash
 npm run db:setup
 ```
 
-4. Start the app:
+5. Start the app:
 
 ```bash
 npm run dev
@@ -67,14 +73,47 @@ npm run clean
 npm run db:setup
 ```
 
-## GitHub Upload
+## Contributing
 
-This project is prepared for GitHub with `.gitignore` and `.env.example`. Keep `.env`, `database.sqlite`, `node_modules`, and `dist` out of commits.
+Contributions are welcome.
 
-Target repository:
+Before contributing, please make sure:
+
+- `.env`
+- `database.sqlite`
+- `node_modules`
+- `dist`
+
+are not committed or pushed.
+
+### Contribution Steps
+
+1. Fork the repository
+
+2. Clone your fork
 
 ```bash
-git remote add origin https://github.com/Developer-Parth/Jyot.git
-git branch -M main
-git push -u origin main
+git clone https://github.com/YOUR-USERNAME/Jyot.git
+cd Jyot
 ```
+
+3. Create a new branch
+
+```bash
+git checkout -b feature/your-feature-name
+```
+
+4. Make your changes and commit
+
+```bash
+git add .
+git commit -m "Add: short-description by {your_name}"
+```
+
+5. Push your branch
+
+```bash
+git push origin feature/your-feature-name
+```
+
+6. Open a Pull Request
