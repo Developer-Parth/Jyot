@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Camera, Image as ImageIcon, Sparkles, Upload, ArrowLeft, Hexagon, Heart, Activity, Coins, AlertCircle, PlayCircle } from 'lucide-react';
+import { Sparkles, Upload, ArrowLeft, Hexagon, Heart, Activity, Coins, AlertCircle, PlayCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Markdown from 'react-markdown';
 import { usePalmReading } from '../hooks/usePalmReading.js';

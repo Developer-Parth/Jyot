@@ -10,8 +10,25 @@ async function startServer() {
   // Use increased limit to allow base64 image uploads
   app.use(express.json({ limit: "50mb" }));
 
+  // Basic request logging (helps diagnose socket resets)
+  app.use((req, _res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    next();
+  });
+
   // API Backend Routes
   app.use('/api', apiRoutes);
+
+  // Health check
+  app.get('/api/health', (_req, res) => res.json({ ok: true }));
+
+  // Error handler (prevents connection resets without response)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    console.error('Unhandled server error:', err);
+    res.status(500).json({ error: err?.message || 'Internal server error' });
+  });
+
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {

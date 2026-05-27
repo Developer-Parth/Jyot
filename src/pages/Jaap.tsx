@@ -81,10 +81,8 @@ export default function Jaap() {
               window.navigator.vibrate(50);
             }
             return prev + 1;
-          } else {
-            setIsPlaying(false);
-            return prev;
           }
+          return prev;
         });
       }, 500);
     }
