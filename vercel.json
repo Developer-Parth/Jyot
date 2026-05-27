@@ -1,7 +1,5 @@
 {
-  "buildCommand": "vite build",
   "outputDirectory": "dist",
-  "installCommand": "npm install",
   "functions": {
     "api/index.ts": {
       "runtime": "@vercel/node@3",
@@ -9,8 +7,6 @@
     }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index.ts" },
-    { "source": "/(.*)", "destination": "/api/index.ts" }
-  ],
-  "gitignore": false
+    { "source": "/api/(.*)", "destination": "/api/index.ts" }
+  ]
 }
