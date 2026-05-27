@@ -1,8 +1,7 @@
 import express from "express";
 import path from "path";
-import { createServer as createViteServer } from "vite";
-import apiRoutes from './server/routes/index.js';
-import './server/db/setup.js';
+import apiRoutes from './server/routes/index';
+import './server/db/setup';
 
 const isVercel = !!process.env.VERCEL;
 
@@ -28,6 +27,7 @@ export async function createApp() {
   });
 
   if (process.env.NODE_ENV !== "production" && !isVercel) {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",

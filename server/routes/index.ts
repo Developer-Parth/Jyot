@@ -1,7 +1,7 @@
 import { Router } from 'express';
-import { PalmReadingController } from '../controllers/PalmReadingController.js';
-import db from '../db/index.js';
-import { PanchangService } from '../services/PanchangService.js';
+import { PalmReadingController } from '../controllers/PalmReadingController';
+import db from '../db/index';
+import { PanchangService } from '../services/PanchangService';
 
 const router = Router();
 

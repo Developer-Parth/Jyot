@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
-import { AiService } from '../services/AiService.js';
-import { ReadingModel } from '../models/Reading.js';
+import { AiService } from '../services/AiService';
+import { ReadingModel } from '../models/Reading';
 
 export class PalmReadingController {
   static async readPalm(req: Request, res: Response) {
