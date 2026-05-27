@@ -1,4 +1,4 @@
-import db from '../db/index';
+import store from '../storage';
 
 export interface Reading {
   id?: number;
@@ -8,9 +8,11 @@ export interface Reading {
 }
 
 export class ReadingModel {
-  static create(data: { reading_text: string; user_id?: number }): number | bigint {
-    const stmt = db.prepare('INSERT INTO palm_readings (reading_text, user_id) VALUES (?, ?)');
-    const info = stmt.run(data.reading_text, data.user_id || null);
-    return info.lastInsertRowid;
+  static async create(data: { reading_text: string; user_id?: number }): Promise<number> {
+    const item = await store.create('palm_readings', {
+      reading_text: data.reading_text,
+      user_id: data.user_id || null,
+    });
+    return item.id;
   }
 }

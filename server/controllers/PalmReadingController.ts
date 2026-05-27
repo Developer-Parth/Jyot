@@ -11,16 +11,12 @@ export class PalmReadingController {
         return;
       }
 
-      // Remove the prefix "data:image/jpeg;base64," if present
       const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
 
-      // 1. Call Service
       const reading = await AiService.getPalmReading(base64Data);
 
-      // 2. Call Model to save in DB
-      ReadingModel.create({ reading_text: reading });
+      await ReadingModel.create({ reading_text: reading });
 
-      // 3. Return response
       res.json({ reading });
     } catch (error) {
       console.error("Palm reading error:", error);

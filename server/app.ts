@@ -1,9 +1,14 @@
 import express from "express";
 import path from "path";
 import apiRoutes from './routes/index';
-import './db/setup';
+import store from './storage';
+
+const COLLECTIONS = ['users', 'jaaps', 'subscriptions', 'palm_readings'];
 
 export function createAppSync() {
+  store.initSync();
+  store.seed(...COLLECTIONS);
+
   const app = express();
 
   app.use(express.json({ limit: "50mb" }));
@@ -27,6 +32,9 @@ export function createAppSync() {
 }
 
 export async function createApp() {
+  await store.init();
+  store.seed(...COLLECTIONS);
+
   const app = createAppSync();
 
   if (process.env.NODE_ENV !== "production" && !process.env.VERCEL) {
