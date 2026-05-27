@@ -1,11 +1,14 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 
-// Connect to SQLite database
-const dbPath = path.resolve(process.cwd(), 'database.sqlite');
-const db = new Database(dbPath); // removed verbose logging to keep terminal clean
+const isVercel = !!process.env.VERCEL;
 
-// Enable foreign keys
+// Use /tmp on Vercel (read-write), otherwise project root
+const dbDir = isVercel ? '/tmp' : process.cwd();
+const dbPath = path.resolve(dbDir, 'database.sqlite');
+const db = new Database(dbPath);
+
 db.pragma('foreign_keys = ON');
+db.pragma('journal_mode = WAL');
 
 export default db;

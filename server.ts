@@ -2,36 +2,32 @@ import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import apiRoutes from './server/routes/index.js';
+import './server/db/setup.js';
 
-async function startServer() {
+const isVercel = !!process.env.VERCEL;
+
+export async function createApp() {
   const app = express();
-  const PORT = 3000;
 
-  // Use increased limit to allow base64 image uploads
   app.use(express.json({ limit: "50mb" }));
 
-  // Basic request logging (helps diagnose socket resets)
-  app.use((req, _res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-    next();
-  });
+  if (!isVercel) {
+    app.use((req, _res, next) => {
+      console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+      next();
+    });
+  }
 
-  // API Backend Routes
   app.use('/api', apiRoutes);
 
-  // Health check
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
-  // Error handler (prevents connection resets without response)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     console.error('Unhandled server error:', err);
     res.status(500).json({ error: err?.message || 'Internal server error' });
   });
 
-
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
+  if (process.env.NODE_ENV !== "production" && !isVercel) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -40,17 +36,35 @@ async function startServer() {
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
-    app.get("*", (req, res) => {
+    app.get("*", (_req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  return app;
 }
 
-startServer().catch((err) => {
-  console.error("Failed to start server", err);
-  process.exit(1);
-});
+// Local dev: start listening. On Vercel: just export the app.
+if (!isVercel) {
+  const PORT = parseInt(process.env.PORT || '3000', 10);
+  const tryPort = async (port: number): Promise<void> => {
+    const app = await createApp();
+    const server = app.listen(port, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${port}`);
+    });
+    server.on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        console.log(`Port ${port} in use, trying ${port + 1}...`);
+        server.close();
+        tryPort(port + 1);
+      } else {
+        console.error('Failed to start server', err);
+        process.exit(1);
+      }
+    });
+  };
+  tryPort(PORT).catch((err) => {
+    console.error("Failed to start server", err);
+    process.exit(1);
+  });
+}
