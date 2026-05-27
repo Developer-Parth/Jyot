@@ -1,55 +1,13 @@
-import express from "express";
-import path from "path";
-import apiRoutes from './server/routes/index';
-import './server/db/setup';
+import { createApp } from './server/app';
 
 const isVercel = !!process.env.VERCEL;
 
-export async function createApp() {
-  const app = express();
+if (!isVercel) {
+  const PORT = parseInt(process.env.PORT || '3003', 10);
 
-  app.use(express.json({ limit: "50mb" }));
+  const tryListen = async (port: number) => {
+    const app = await createApp();
 
-  if (!isVercel) {
-    app.use((req, _res, next) => {
-      console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-      next();
-    });
-  }
-
-  app.use('/api', apiRoutes);
-
-  app.get('/api/health', (_req, res) => res.json({ ok: true }));
-
-  app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    console.error('Unhandled server error:', err);
-    res.status(500).json({ error: err?.message || 'Internal server error' });
-  });
-
-  if (process.env.NODE_ENV !== "production" && !isVercel) {
-    const { createServer: createViteServer } = await import("vite");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (_req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
-  }
-
-  return app;
-}
-
-// Local dev: start listening. On Vercel: just export the app.
-async function startDev() {
-  const PORT = parseInt(process.env.PORT || '3000', 10);
-  const app = await createApp();
-
-  const tryListen = (port: number) => {
     const server = app.listen(port, "0.0.0.0", () => {
       console.log(`Server running on http://localhost:${port}`);
     });
@@ -65,11 +23,7 @@ async function startDev() {
     });
   };
 
-  tryListen(PORT);
-}
-
-if (!isVercel) {
-  startDev().catch((err) => {
+  tryListen(PORT).catch((err) => {
     console.error("Failed to start server", err);
     process.exit(1);
   });
