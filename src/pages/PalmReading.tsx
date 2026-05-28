@@ -4,7 +4,32 @@ import { Sparkles, Upload, ArrowLeft, Hexagon, Heart, Activity, Coins, AlertCirc
 import Markdown from 'react-markdown';
 import { usePalmReading } from '../hooks/usePalmReading.js';
 
-const MAX_IMAGE_SIZE = 3.5 * 1024 * 1024;
+const MAX_FILE_SIZE = 3.5 * 1024 * 1024;
+const COMPRESS_MAX_WIDTH = 1024;
+const COMPRESS_QUALITY = 0.7;
+const SAFE_BASE64_LIMIT = 3.5 * 1024 * 1024;
+
+function compressImage(dataUrl: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > COMPRESS_MAX_WIDTH) {
+        height = Math.round((height * COMPRESS_MAX_WIDTH) / width);
+        width = COMPRESS_MAX_WIDTH;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { reject(new Error('Canvas context unavailable')); return; }
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', COMPRESS_QUALITY));
+    };
+    img.onerror = () => reject(new Error('Failed to decode image.'));
+    img.src = dataUrl;
+  });
+}
 
 export default function PalmReading() {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
@@ -20,17 +45,33 @@ export default function PalmReading() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > MAX_IMAGE_SIZE) {
+    if (file.size > MAX_FILE_SIZE) {
       setSizeError(`Image too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Please use an image under 3.5MB.`);
       return;
     }
     setSizeError(null);
+    console.log(`[PALM] Original file size: ${(file.size / 1024).toFixed(1)}KB`);
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setImageSrc(reader.result as string);
+    reader.onloadend = async () => {
+      const rawDataUrl = reader.result as string;
+      try {
+        const compressed = await compressImage(rawDataUrl);
+        const base64Len = compressed.length;
+        const rawSize = rawDataUrl.length;
+        console.log(`[PALM] Original base64 length: ${(rawSize / 1024).toFixed(1)}KB`);
+        console.log(`[PALM] Compressed base64 length: ${(base64Len / 1024).toFixed(1)}KB`);
+        console.log(`[PALM] Final base64 length: ${(base64Len / 1024).toFixed(1)}KB`);
+        if (base64Len > SAFE_BASE64_LIMIT) {
+          setSizeError('Image too large. Please upload a smaller image.');
+          return;
+        }
+        setImageSrc(compressed);
+      } catch {
+        setSizeError('Failed to process image. Please try another one.');
+      }
     };
     reader.readAsDataURL(file);
   };
