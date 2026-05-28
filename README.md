@@ -4,6 +4,7 @@
   <p align="center">A full-stack spiritual companion app for daily practice, Vedic almanac, AI palm reading, and digital jaap tracking.</p>
   <p align="center">
     <a href="#features">Features</a> •
+    <a href="#live-demo">Live Demo</a> •
     <a href="#tech-stack">Tech Stack</a> •
     <a href="#getting-started">Getting Started</a> •
     <a href="#deployment">Deployment</a> •
@@ -11,9 +12,22 @@
   </p>
 </div>
 
+> ⚠️ Jyot is currently an experimental open-source project under active development. Some features, especially AI-powered palm reading and Android builds, may evolve rapidly or occasionally behave inconsistently.
+
+---
+
+## Live Demo
+
+- **Web App**: [https://myjyot.xyz](https://myjyot.xyz)
+- **Android APK**: [GitHub Releases](https://github.com/Developer-Parth/Jyot/releases)
+
 ---
 
 ## Features
+
+### Screenshots
+
+> Add screenshots here — homepage, palm reading, jaap mala, panchang, and Android APK screenshots make a huge difference for open-source projects.
 
 ### Panchang (Vedic Almanac)
 Daily panchang computed entirely offline using the `mhah-panchang` library — no paid API required. Calculates:
@@ -23,18 +37,18 @@ Daily panchang computed entirely offline using the `mhah-panchang` library — n
 - Supports 15 Indian cities with English/Hindi output
 
 ### AI Palm Reading
-Upload a palm photo and receive a detailed reading via Google Gemini 2.5 Flash. The system includes **automatic failover across 11 API keys** — if one key hits a rate limit or quota, it silently tries the next.
+Upload a palm photo and receive a detailed reading via Google Gemini 2.5 Flash. The system includes robust retry and fallback handling for improved reliability during temporary API failures or rate limits.
 
 ### Digital Jaap Mala
 A full interactive mala counter with:
 - 108-bead SVG visualization with progress ring
 - Preset mantras and customizable goals
 - Tap-to-count with haptic feedback
-- Autoplay mode and voice chant playback (Web Speech API)
+- Autoplay mode and voice chant playback (Web Speech API + native Android TTS)
 - Persistent progress per mantra with completed-session tracking
 
 ### Puja Library
-A searchable collection of 16 pujas with:
+A searchable collection of pujas with:
 - English and Hindi content
 - Step-by-step vidhi with countdown timers
 - Samagri checklist (persisted locally)
@@ -43,11 +57,11 @@ A searchable collection of 16 pujas with:
 
 ### Subscription Plans
 | Plan | Monthly | Features |
-|---|---|---|
+|------|---------|----------|
 | Seeker | ₹0 | Basic jaap, streaks, daily almanac |
 | Devotee | ₹101 | Full history, ad-free, all puja vidhis |
 | Sadhak | ₹251 | Unlimited AI palmistry, custom reminders |
-| Guru Dakshina | ₹501 | Monthly consult note, exclusive content |
+| Guru Dakshina | ₹501 | Coming soon |
 
 ### Streak Tracking
 Tracks daily activity streaks (current + longest) tied to login and jaap activity.
@@ -62,11 +76,20 @@ Tracks daily activity streaks (current + longest) tied to login and jaap activit
 | UI | Motion (animations), Lucide React (icons), react-markdown |
 | Routing | react-router-dom v7 |
 | Backend | Node.js, Express 4 |
-| Data | JSON file store with atomic writes |
-| AI | Google GenAI SDK (Gemini 2.5 Flash, 11-key failover) |
+| Data | JSON file storage with in-memory cache and atomic writes |
+| AI | Google GenAI SDK (Gemini 2.5 Flash) |
 | Panchang | mhah-panchang (offline, no API key needed) |
 | Mobile | Capacitor (Android native wrapper) |
 | Deployment | Vercel (serverless function + static SPA) |
+
+---
+
+## Security
+
+- Gemini API keys are stored securely in backend environment variables only.
+- No API keys are exposed to the frontend, APK, or browser bundle.
+- The frontend communicates only with backend `/api/*` routes.
+- Sensitive credentials should never be committed to GitHub.
 
 ---
 
@@ -93,7 +116,7 @@ Tracks daily activity streaks (current + longest) tied to login and jaap activit
    ```bash
    cp .env.example .env
    ```
-   Add your Gemini API keys to `.env`. The system tries the primary key first, then falls through keys 1–10.
+   Add your Gemini API keys to `.env`. The system uses the primary key first with automatic fallback through backup keys if needed.
 
 4. Start the development server:
    ```bash
@@ -123,6 +146,7 @@ All routes are mounted under `/api`:
 | `GET` | `/api/ping` | Liveness check with timestamp |
 | `POST` | `/api/auth/login` | Profile-based login/signup |
 | `GET` | `/api/users/:id` | User profile + analytics + subscription |
+| `PUT` | `/api/users/:id` | Update user profile |
 | `GET` | `/api/jaap/:userId` | Get latest jaap session |
 | `PUT` | `/api/jaap/:userId` | Save or update jaap progress |
 | `POST` | `/api/palm-reading` | Submit palm image for AI reading |
@@ -142,6 +166,7 @@ All routes are mounted under `/api`:
                     │   ├── /api/ping          │
                     │   ├── /api/health        │
                     │   ├── /api/auth/*        │
+                    │   ├── /api/users/*       │
                     │   ├── /api/jaap/*        │
                     │   ├── /api/palm-reading  │
                     │   ├── /api/panchang      │
@@ -149,8 +174,8 @@ All routes are mounted under `/api`:
                     │                          │
                     │   JSON Store             │
                     │   (users, jaaps,         │
-                    │    subscriptions,         │
-                    │    palm_readings)         │
+                    │    subscriptions,        │
+                    │    palm_readings)        │
                     └──────────┬──────────────┘
                                │
                     ┌──────────┴──────────────┐
@@ -165,12 +190,10 @@ The app uses **JSON file storage** with an in-memory cache and atomic writes (`.
 - **Local**: `server/data/`
 - **Vercel**: `/tmp/data` (ephemeral per instance)
 
-### Gemini API Key Failover
-The AI palm reader loads keys from these environment variables in order:
-- `GEMINI_API_KEY`, `GEMINI_API_KEY_1` … `GEMINI_API_KEY_10`
-- `GEMINI_API_KEYS` (comma-separated)
+> JSON file storage works well for single-user or low-traffic use. For production at scale, consider migrating to SQLite or a managed database.
 
-If a request fails (rate limit, quota, timeout), it retries with the next key.
+### Gemini API Key Handling
+The AI palm reader loads keys from environment variables (`GEMINI_API_KEY`, `GEMINI_API_KEY_1` … `GEMINI_API_KEY_10`, `GEMINI_API_KEYS`). If a request fails due to rate limits or temporary errors, it retries with the next available key. Keys are never exposed to the client.
 
 ---
 
@@ -193,7 +216,7 @@ The project is Vercel-ready:
 | Variable | Required | Description |
 |---|---|---|
 | `GEMINI_API_KEY` | Yes | Primary Gemini API key |
-| `GEMINI_API_KEY_1–10` | No | Backup keys for failover |
+| `GEMINI_API_KEY_1–10` | No | Backup keys for fallback |
 | `GEMINI_API_KEYS` | No | Comma-separated additional keys |
 | `PORT` | No | Server port (default: `3003`) |
 
@@ -204,11 +227,18 @@ The project is Vercel-ready:
 Build the Capacitor Android APK:
 
 ```bash
+npm run build
 npx cap sync android
-npx cap open android
 ```
 
-Then build the APK from Android Studio. The `android/app/build/` directory is gitignored.
+Then build the APK from Android Studio or via CLI:
+
+```bash
+cd android
+./gradlew assembleDebug
+```
+
+The APK will be at `android/app/build/outputs/apk/debug/`. The `android/app/build/` directory is gitignored.
 
 ---
 
