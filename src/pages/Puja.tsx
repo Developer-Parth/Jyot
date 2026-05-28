@@ -106,7 +106,7 @@ export default function Puja() {
               <button
                 onClick={(event) => {
                   event.stopPropagation();
-                  playChant(puja.soundText, language);
+                  playChant(puja.soundTextHi || puja.soundText, 'hi');
                 }}
                 className="w-12 h-12 rounded-xl bg-amber-100 text-rose-700 flex items-center justify-center shrink-0"
                 title={t(language, 'Play chant', 'मंत्र सुनें')}

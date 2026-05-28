@@ -58,7 +58,7 @@ export default function PujaDetail() {
           <div className="flex items-center gap-1 text-amber-300 font-medium">
             <Star className="w-4 h-4 fill-amber-400" /> {basePuja.rating}
           </div>
-          <button onClick={() => playChant(basePuja.soundText, language)} className="ml-auto flex items-center gap-1 text-amber-100">
+          <button onClick={() => playChant(basePuja.soundTextHi || basePuja.soundText, 'hi')} className="ml-auto flex items-center gap-1 text-amber-100">
             <Volume2 className="w-4 h-4" /> {t(language, 'Play', 'सुनें')}
           </button>
         </div>
@@ -153,7 +153,7 @@ export default function PujaDetail() {
                   <p className="text-sm text-stone-700 mb-3">{t(language, step.instruction, step.instructionHi)}</p>
 
                   {step.mantra && (
-                    <button onClick={() => playChant(step.audioText || step.mantra || '', language)} className="w-full text-left bg-amber-50/80 p-3 rounded-xl border border-amber-100">
+                    <button onClick={() => playChant(step.audioTextHi || step.mantraHi || step.audioText || step.mantra || '', 'hi')} className="w-full text-left bg-amber-50/80 p-3 rounded-xl border border-amber-100">
                       <div className="flex items-center gap-2 mb-1">
                         <PlayCircle className="w-4 h-4 text-rose-700" />
                         <span className="text-xs font-bold tracking-widest text-rose-700 uppercase">{t(language, 'Chant', 'मंत्र')}</span>

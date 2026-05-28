@@ -22,6 +22,19 @@ export default function Jaap() {
     'Om Namo Bhagavate Vasudevaya'
   ];
 
+  const mantraSpeech: Record<string, string> = {
+    'Om Namah Shivaya': 'ॐ नमः शिवाय',
+    'Om Bhur Bhuva Swaha (Gayatri)': 'ॐ भूर्भुवः स्वः । तत्सवितुर्वरेण्यं भर्गो देवस्य धीमहि । धियो यो नः प्रचोदयात् ॥',
+    'Hare Krishna Hare Rama': 'हरे कृष्ण हरे राम',
+    'Om Gan Ganapataye Namo Namah': 'ॐ गं गणपतये नमो नमः',
+    'Om Namo Bhagavate Vasudevaya': 'ॐ नमो भगवते वासुदेवाय',
+  };
+
+  const displayFromSpeech: Record<string, string> = {};
+  for (const [en, hi] of Object.entries(mantraSpeech)) {
+    displayFromSpeech[hi] = en;
+  }
+
   const goals = [108, 216, 540, 1080];
 
   useEffect(() => {
@@ -30,7 +43,7 @@ export default function Jaap() {
 
     api.get<{ mantra: string; count: number; goal: number }>(`/jaap/${userId}`)
       .then((saved) => {
-        setMantra(saved.mantra || 'Om Namah Shivaya');
+        setMantra(displayFromSpeech[saved.mantra] || saved.mantra || 'Om Namah Shivaya');
         setCount(Number(saved.count || 0));
         setGoal(Number(saved.goal || 108));
       })
@@ -257,7 +270,7 @@ export default function Jaap() {
             <Play className="w-6 h-6 ml-1" />
           </button>
           <button
-            onClick={() => playChant(mantra, 'hi')}
+            onClick={() => { setCount(prev => prev < goal ? prev + 1 : prev); playChant(mantraSpeech[mantra] || mantra, 'hi'); }}
             className="w-12 h-12 rounded-full bg-amber-100 shadow-sm border border-amber-200 flex items-center justify-center text-rose-700 hover:bg-amber-200 transition-colors"
           >
             <Volume2 className="w-5 h-5" />
