@@ -1,7 +1,24 @@
 node_modules/
 dist/
 .env
-.env.example
 server/data/
 *.log
 .DS_Store
+database.sqlite*
+*.sqlite
+
+# Android / Capacitor build outputs
+android/app/build/
+*.apk
+*.aab
+*.ap_
+*.aab
+
+# Keystore / signing files (keep these out of git)
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.key
+signing.properties
+local.properties
