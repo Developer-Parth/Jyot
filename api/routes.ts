@@ -83,6 +83,23 @@ router.post('/auth/login', asyncHandler(async (req, res) => {
   }
 }));
 
+router.put('/users/:id', asyncHandler(async (req, res) => {
+  const userId = Number(req.params.id);
+  const { name, phone, city, birthDate, deity, gotra, reminderTime } = req.body;
+  const updated = await store.update('users', userId, {
+    name, phone, city,
+    birth_date: birthDate ?? undefined,
+    deity: deity ?? 'Shiva',
+    gotra: gotra ?? '',
+    reminder_time: reminderTime ?? '06:00',
+  });
+  if (!updated) {
+    res.status(404).json({ error: 'User not found.' });
+    return;
+  }
+  res.json({ user: updated });
+}));
+
 router.get('/users/:id', asyncHandler(async (req, res) => {
   const userId = Number(req.params.id);
   await touchStreak(userId);

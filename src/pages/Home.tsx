@@ -1,10 +1,41 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { format } from 'date-fns';
-import { ArrowRight, BookOpen, Calendar, CircleDashed, Flame, MapPin, Moon, Sparkles, Sun } from 'lucide-react';
+import { ArrowRight, BookOpen, Calendar, CalendarPlus, CircleDashed, Flame, MapPin, Moon, Sparkles, Sun } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../services/api';
 import { APP_NAME } from '../lib/branding';
+
+function icsDate(date: Date): string {
+  return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+}
+
+function downloadICS(event: { title: string; description: string; date: Date }) {
+  const start = icsDate(event.date);
+  const end = icsDate(new Date(event.date.getTime() + 3600000));
+  const escaped = (s: string) => s.replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
+  const ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//DharmaPath//Calendar//EN',
+    'BEGIN:VEVENT',
+    `DTSTART:${start}`,
+    `DTEND:${end}`,
+    `SUMMARY:${escaped(event.title)}`,
+    `DESCRIPTION:${escaped(event.description)}`,
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n');
+
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${event.title.replace(/[^a-zA-Z0-9]/g, '_')}.ics`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+}
 
 type HomeData = {
   user: { name: string; city: string };
@@ -83,9 +114,16 @@ export default function Home() {
               <p className="text-xs text-stone-500 flex items-center gap-1"><MapPin className="w-3 h-3" /> {panchang?.city || city}</p>
               {panchang?.source && <p className="text-[10px] text-stone-400 mt-1">Source: {panchang.source}</p>}
             </div>
-            <div className="p-2 bg-amber-100 rounded-full text-amber-800">
-              <Calendar className="w-4 h-4" />
-            </div>
+            <button onClick={() => {
+              if (!panchang) return;
+              downloadICS({
+                title: `Panchang – ${format(today, 'd MMM yyyy')}`,
+                description: `Tithi: ${panchang.tithi}\nNakshatra: ${panchang.nakshatra}\nSamvat: ${panchang.samvat}\nSunrise: ${panchang.sunrise}\nSunset: ${panchang.sunset}\nAbhijit Muhurta: ${panchang.abhijitMuhurta}\nRahu Kaal: ${panchang.rahuKaal}`,
+                date: today,
+              });
+            }} className="p-2 bg-amber-100 rounded-full text-amber-800 hover:bg-amber-200 transition-colors">
+              <CalendarPlus className="w-4 h-4" />
+            </button>
           </div>
 
           <div className="grid grid-cols-2 gap-4 mb-4">
@@ -185,7 +223,23 @@ export default function Home() {
                   <p className="text-xs text-stone-500">In {fest.daysLeft} days</p>
                 </div>
               </div>
-              <ArrowRight className="w-4 h-4 text-rose-700" />
+              <button onClick={() => {
+                const parts = fest.date.split(' ');
+                if (parts.length < 2) return;
+                const monthAbbr = parts[0];
+                const day = parseInt(parts[1], 10);
+                const monthMap: Record<string, number> = { Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11 };
+                const month = monthMap[monthAbbr];
+                if (month === undefined || isNaN(day)) return;
+                const date = new Date(today.getFullYear(), month, day, 9, 0, 0);
+                downloadICS({
+                  title: fest.name,
+                  description: `Hindu festival on ${fest.date}`,
+                  date,
+                });
+              }} className="p-1 hover:bg-rose-100 rounded-full transition-colors">
+                <CalendarPlus className="w-4 h-4 text-rose-700" />
+              </button>
             </motion.div>
           ))}
         </div>
