@@ -37,7 +37,10 @@ const getClient = (apiKey: string) => new GoogleGenAI({
 
 export class AiService {
   static async getPalmReading(base64Data: string): Promise<string> {
+    console.log('[AI] getPalmReading called, base64Data.length:', base64Data.length);
+
     if (geminiKeys.length === 0) {
+      console.error('[AI] No Gemini API keys configured');
       throw new Error('No Gemini API keys configured');
     }
 
@@ -54,23 +57,32 @@ export class AiService {
 
     let lastError: unknown;
 
-    for (const apiKey of geminiKeys) {
+    for (let i = 0; i < geminiKeys.length; i++) {
+      const prefix = geminiKeys[i].substring(0, 6);
+      console.log(`[AI] trying key[${i}] prefix=${prefix}...`);
       try {
-        const aiResponse = await getClient(apiKey).models.generateContent({
+        const aiResponse = await getClient(geminiKeys[i]).models.generateContent({
           model: 'gemini-2.5-flash',
           contents: { parts: [imagePart, textPart] },
         });
 
+        console.log('[AI] response received, keys:', Object.keys(aiResponse));
+        console.log('[AI] response.candidates:', JSON.stringify(aiResponse.candidates?.length));
+        console.log('[AI] response.text type:', typeof aiResponse.text, 'length:', aiResponse.text?.length);
+
         if (aiResponse.text) {
+          console.log(`[AI] key[${i}] succeeded`);
           return aiResponse.text;
         }
 
         lastError = new Error('No response from AI');
-      } catch (error) {
+      } catch (error: any) {
+        console.error(`[AI] key[${i}] failed:`, error?.message || error);
         lastError = error;
       }
     }
 
+    console.error('[AI] All keys exhausted, throwing');
     throw lastError instanceof Error ? lastError : new Error('All Gemini API keys failed');
   }
 }
