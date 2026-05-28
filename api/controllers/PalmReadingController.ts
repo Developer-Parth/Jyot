@@ -30,7 +30,8 @@ export class PalmReadingController {
       res.json({ reading });
     } catch (error) {
       console.error('[PALM] Error:', error);
-      res.status(500).json({ error: 'Failed to read palm. Please try another image.' });
+      const message = error instanceof Error ? error.message : 'Unexpected AI server error.';
+      res.status(500).json({ error: message });
     }
   }
 }

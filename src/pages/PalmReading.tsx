@@ -1,13 +1,15 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, Upload, ArrowLeft, Hexagon, Heart, Activity, Coins, AlertCircle, PlayCircle } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Sparkles, Upload, ArrowLeft, Hexagon, Heart, Activity, Coins, AlertCircle, PlayCircle, RefreshCw } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { usePalmReading } from '../hooks/usePalmReading.js';
+
+const MAX_IMAGE_SIZE = 3.5 * 1024 * 1024;
 
 export default function PalmReading() {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [demoScanPos, setDemoScanPos] = useState(0);
+  const [sizeError, setSizeError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { reading, loading: isAnalyzing, error, getReading: fetchReading, clearReading } = usePalmReading();
 
@@ -20,18 +22,22 @@ export default function PalmReading() {
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImageSrc(reader.result as string);
-        // We'll pass the base64 string to fetchReading when the user clicks the button
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+    if (file.size > MAX_IMAGE_SIZE) {
+      setSizeError(`Image too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Please use an image under 3.5MB.`);
+      return;
     }
+    setSizeError(null);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImageSrc(reader.result as string);
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleGetReading = async () => {
     if (!imageSrc) return;
+    clearReading();
     await fetchReading(imageSrc);
   };
 
@@ -122,6 +128,25 @@ export default function PalmReading() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {(error || sizeError) && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-red-50/90 backdrop-blur-md rounded-3xl p-5 shadow-sm border border-red-200 mb-6 text-center"
+          >
+            <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-2" />
+            <p className="text-sm font-medium text-red-700">{sizeError || error}</p>
+            {error && imageSrc && !isAnalyzing && (
+              <button
+                onClick={handleGetReading}
+                className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors"
+              >
+                <RefreshCw className="w-4 h-4" /> Retry
+              </button>
+            )}
+          </motion.div>
+        )}
 
         <AnimatePresence>
           {reading && (
