@@ -4,13 +4,21 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { PalmReadingController } from './controllers/PalmReadingController.js';
 import store from './storage.js';
 import { PanchangService } from './services/PanchangService.js';
+import { palmReadingLimiter, authLimiter } from './middleware/rateLimiter.js';
+import {
+  validateLogin,
+  validateUserUpdate,
+  validatePalmReading,
+  validateJaapSave,
+  validateSubscription,
+} from './middleware/validate.js';
 
 const router = Router();
 
 const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => Promise<void>) =>
   (req: Request, res: Response, next: NextFunction) => fn(req, res, next).catch(next);
 
-router.post('/palm-reading', PalmReadingController.readPalm);
+router.post('/palm-reading', palmReadingLimiter, validatePalmReading, PalmReadingController.readPalm);
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
 
@@ -40,13 +48,9 @@ const getCurrentSubscription = (userId: number) => {
   return subs[0] || null;
 };
 
-router.post('/auth/login', asyncHandler(async (req, res) => {
+router.post('/auth/login', authLimiter, validateLogin, asyncHandler(async (req, res) => {
   try {
     const { name, phone, city, birthDate, deity, gotra } = req.body;
-    if (!name || !phone || !city) {
-      res.status(400).json({ error: 'Name, phone, and city are required.' });
-      return;
-    }
 
     if (birthDate) {
       const birth = new Date(birthDate);
@@ -95,7 +99,7 @@ router.post('/auth/login', asyncHandler(async (req, res) => {
   }
 }));
 
-router.put('/users/:id', asyncHandler(async (req, res) => {
+router.put('/users/:id', validateUserUpdate, asyncHandler(async (req, res) => {
   const userId = Number(req.params.id);
   const { name, phone, city, birthDate, deity, gotra, reminderTime } = req.body;
   const updated = await store.update('users', userId, {
@@ -149,7 +153,7 @@ router.get('/jaap/:userId', (req, res) => {
   res.json(jaap || { mantra: 'Om Namah Shivaya', count: 0, goal: 108, completed_sessions: 0 });
 });
 
-router.put('/jaap/:userId', asyncHandler(async (req, res) => {
+router.put('/jaap/:userId', validateJaapSave, asyncHandler(async (req, res) => {
   const userId = Number(req.params.userId);
   const { mantra, count, goal, completed } = req.body;
   await touchStreak(userId);
@@ -190,7 +194,7 @@ router.get('/panchang', async (req, res) => {
   }
 });
 
-router.post('/subscriptions', asyncHandler(async (req, res) => {
+router.post('/subscriptions', validateSubscription, asyncHandler(async (req, res) => {
   const { userId, plan, billingCycle, amount, billingDetails, paymentMethod } = req.body;
   if (!userId || !plan || !billingDetails?.fullName || !billingDetails?.email || !billingDetails?.phone) {
     res.status(400).json({ error: 'Plan and billing contact details are required.' });

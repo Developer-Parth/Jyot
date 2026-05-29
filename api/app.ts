@@ -4,6 +4,7 @@ import express from 'express';
 import path from 'path';
 import apiRoutes from './routes.js';
 import store from './storage.js';
+import { generalLimiter } from './middleware/rateLimiter.js';
 
 const COLLECTIONS = ['users', 'jaaps', 'subscriptions', 'palm_readings'];
 
@@ -37,7 +38,7 @@ export function createAppSync() {
     res.json({ ok: true, time: new Date().toISOString() });
   });
 
-  app.use('/api', apiRoutes);
+  app.use('/api', generalLimiter, apiRoutes);
   app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
   app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
