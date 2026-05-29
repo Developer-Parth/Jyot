@@ -15,6 +15,7 @@ import Profile from './pages/Profile';
 import Onboarding from './pages/Onboarding';
 import Login from './pages/Login';
 import Subscription from './pages/Subscription';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 import LiveBackground from './components/LiveBackground';
 import { Analytics } from "@vercel/analytics/react"
 
@@ -39,6 +40,7 @@ export default function App() {
       <LiveBackground />
       <BrowserRouter>
       <Routes>
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         {!hasCompletedOnboarding ? (
           <Route path="*" element={<Onboarding onComplete={() => {
             localStorage.setItem('hasCompletedOnboarding', 'true');

@@ -48,6 +48,18 @@ router.post('/auth/login', asyncHandler(async (req, res) => {
       return;
     }
 
+    if (birthDate) {
+      const birth = new Date(birthDate);
+      const today = new Date();
+      let age = today.getFullYear() - birth.getFullYear();
+      const m = today.getMonth() - birth.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+      if (age < 13) {
+        res.status(403).json({ error: 'You must be at least 13 years old to use Jyot.' });
+        return;
+      }
+    }
+
     const email = `${String(phone).replace(/\D/g, '')}@jyot.local`;
     let user = store.findOne<any>('users', u => u.phone === phone || u.email === email);
 

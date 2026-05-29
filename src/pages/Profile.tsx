@@ -233,7 +233,10 @@ export default function Profile({ onLogout }: { onLogout: () => void }) {
           </motion.div>
         </section>
 
-        <section className="pt-4">
+        <section className="pt-4 space-y-3">
+          <Link to="/privacy-policy" className="block w-full py-3 rounded-2xl border border-stone-200 bg-white/50 text-stone-600 font-medium text-sm text-center hover:bg-stone-50 transition-colors">
+            Privacy Policy
+          </Link>
           <button onClick={onLogout} className="w-full py-4 rounded-2xl bg-stone-950 text-amber-50 font-medium text-sm flex items-center justify-center gap-2 hover:bg-stone-800 transition-colors">
             <LogOut className="w-4 h-4" /> Log Out
           </button>

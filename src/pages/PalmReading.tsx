@@ -35,6 +35,7 @@ export default function PalmReading() {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [demoScanPos, setDemoScanPos] = useState(0);
   const [sizeError, setSizeError] = useState<string | null>(null);
+  const [disclaimerAccepted, setDisclaimerAccepted] = useState(() => localStorage.getItem('palmDisclaimerAccepted') === 'true');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { reading, loading: isAnalyzing, error, getReading: fetchReading, clearReading } = usePalmReading();
 
@@ -136,12 +137,35 @@ export default function PalmReading() {
               </div>
 
               {!reading && !isAnalyzing && (
-                <button 
-                  onClick={handleGetReading}
-                  className="w-full py-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-medium shadow-lg shadow-purple-500/30 hover:opacity-90 transition-opacity flex justify-center items-center gap-2"
-                >
-                  <Sparkles className="w-5 h-5" /> Analyze My Destiny
-                </button>
+                <>
+                  {!disclaimerAccepted && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-left space-y-3">
+                      <p className="text-xs text-amber-800 leading-relaxed">
+                        AI palm readings are intended for spiritual reflection and entertainment purposes only.
+                        They should not be considered medical, legal, financial, or professional advice.
+                      </p>
+                      <label className="flex items-start gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              localStorage.setItem('palmDisclaimerAccepted', 'true');
+                              setDisclaimerAccepted(true);
+                            }
+                          }}
+                          className="mt-0.5 w-4 h-4 rounded border-amber-300 text-amber-700 focus:ring-amber-500 shrink-0"
+                        />
+                        <span className="text-xs text-stone-600">I understand and wish to proceed</span>
+                      </label>
+                    </div>
+                  )}
+                  <button 
+                    onClick={handleGetReading}
+                    className="w-full py-4 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-medium shadow-lg shadow-purple-500/30 hover:opacity-90 transition-opacity flex justify-center items-center gap-2"
+                  >
+                    <Sparkles className="w-5 h-5" /> Analyze My Destiny
+                  </button>
+                </>
               )}
             </div>
           )}

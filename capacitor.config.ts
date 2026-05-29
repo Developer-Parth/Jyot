@@ -5,7 +5,9 @@ const config: CapacitorConfig = {
   appName: 'JYOT',
   webDir: 'dist',
   server: {
+    url: 'https://myjyot.xyz',
     cleartext: true,
+    hostname: 'myjyot.xyz',
   },
 };
 
