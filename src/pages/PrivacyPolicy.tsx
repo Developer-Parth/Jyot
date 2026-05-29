@@ -75,7 +75,7 @@ export default function PrivacyPolicy() {
           <section>
             <h2 className="text-lg font-serif text-stone-900 mb-2">6. Contact</h2>
             <p>If you have questions about this Privacy Policy or wish to request data deletion, please contact us at:</p>
-            <p className="mt-1 font-medium text-amber-800">jyot@myjyot.xyz</p>
+            <p className="mt-1 font-medium text-amber-800">parththukral16@gmail.com</p>
           </section>
 
           <section>
