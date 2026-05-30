@@ -20,6 +20,7 @@ import WishList from './pages/WishList';
 import WishDetail from './pages/WishDetail';
 import RecordWish from './pages/RecordWish';
 import AdminDashboard from './pages/AdminDashboard';
+import Help from './pages/Help';
 import LiveBackground from './components/LiveBackground';
 import { Analytics } from "@vercel/analytics/react"
 import { getToken, clearToken, isAuthenticated as checkAuth } from './services/auth';
@@ -75,6 +76,7 @@ export default function App() {
             <Route path="/wish/:id" element={<WishDetail />} />
             <Route path="/record-wish" element={<RecordWish />} />
             <Route path="/profile" element={<Profile onLogout={handleLogout} />} />
+            <Route path="/help" element={<Help />} />
             <Route path="/subscription" element={<Subscription />} />
             <Route path="*" element={<Navigate to="/home" replace />} />
           </Route>

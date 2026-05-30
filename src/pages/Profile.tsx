@@ -256,6 +256,9 @@ export default function Profile({ onLogout }: { onLogout: () => void }) {
           <Link to="/wishes" className="block w-full py-3 rounded-2xl border border-amber-200 bg-amber-50/50 text-stone-700 font-medium text-sm text-center hover:bg-amber-100 transition-colors">
             My Wishes
           </Link>
+          <Link to="/help" className="block w-full py-3 rounded-2xl border border-stone-200 bg-white/50 text-stone-600 font-medium text-sm text-center hover:bg-stone-50 transition-colors">
+            Help & Guide
+          </Link>
           <Link to="/privacy-policy" className="block w-full py-3 rounded-2xl border border-stone-200 bg-white/50 text-stone-600 font-medium text-sm text-center hover:bg-stone-50 transition-colors">
             Privacy Policy
           </Link>

@@ -20,6 +20,13 @@ export class PalmReadingController {
       const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
       console.log('[PALM] base64Data length after strip:', base64Data.length);
 
+      const isValid = await AiService.validatePalmImage(base64Data);
+      if (!isValid) {
+        console.log('[PALM] image rejected — not a human palm');
+        res.status(400).json({ error: 'कृपया अपनी हथेली की स्पष्ट फ़ोटो अपलोड करें। Please upload a clear photo of your palm.' });
+        return;
+      }
+
       console.log('[PALM] calling AiService.getPalmReading()...');
       const reading = await AiService.getPalmReading(base64Data);
       console.log('[PALM] AiService.getPalmReading() succeeded, reading length:', reading?.length);

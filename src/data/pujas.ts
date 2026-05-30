@@ -36,7 +36,11 @@ export type Puja = {
   steps: PujaStep[];
 };
 
-export const amazonSearchUrl = (itemName: string) => `https://www.amazon.com/s?k=${encodeURIComponent(itemName.trim().replace(/\s+/g, '+'))}`;
+const affiliateTag = ''; // Set your Amazon Associates tracking ID: '?tag=jyot-21'
+export const amazonSearchUrl = (itemName: string) => {
+  const base = `https://www.amazon.com/s?k=${encodeURIComponent(itemName.trim().replace(/\s+/g, '+'))}`;
+  return affiliateTag ? `${base}&tag=${affiliateTag}` : base;
+};
 
 export const pujas: Puja[] = [
   {
@@ -173,7 +177,7 @@ export const pujas: Puja[] = [
     overviewHi: 'साहस, अनुशासन, रक्षा और भक्ति शक्ति के लिए किया जाने वाला शक्तिशाली दैनिक पाठ।',
     samagri: [
       { id: 1, name: 'Hanuman Chalisa Book', hindiName: 'हनुमान चालीसा पुस्तक' },
-      { id: 2, name: 'Sindoor', hindiName: 'सिंदूर' },
+      { id: 2, name: 'Orange Sindoor', hindiName: 'नारंगी सिंदूर' },
       { id: 3, name: 'Jasmine Oil', hindiName: 'चमेली का तेल' },
       { id: 4, name: 'Red Flowers', hindiName: 'लाल फूल' },
       { id: 5, name: 'Jaggery and Chana', hindiName: 'गुड़ और चना' },
@@ -181,7 +185,7 @@ export const pujas: Puja[] = [
     ],
     steps: [
       { step: 1, title: 'Light Diya', titleHi: 'दीप जलाएं', instruction: 'Light a diya and incense before Lord Hanuman.', instructionHi: 'भगवान हनुमान के समक्ष दीप और अगरबत्ती जलाएं।' },
-      { step: 2, title: 'Offer Sindoor', titleHi: 'सिंदूर अर्पण', instruction: 'Offer sindoor, jasmine oil, and red flowers.', instructionHi: 'सिंदूर, चमेली का तेल और लाल फूल अर्पित करें।' },
+      { step: 2, title: 'Offer Orange Sindoor', titleHi: 'नारंगी सिंदूर अर्पण', instruction: 'Offer orange sindoor, jasmine oil, and red flowers.', instructionHi: 'नारंगी सिंदूर, चमेली का तेल और लाल फूल अर्पित करें।' },
       { step: 3, title: 'Chalisa Path', titleHi: 'चालीसा पाठ', instruction: 'Recite Hanuman Chalisa with focus and humility.', instructionHi: 'एकाग्रता और विनम्रता से हनुमान चालीसा का पाठ करें।', mantra: 'Shri Guru Charan Saroj Raj, Nij Man Mukur Sudhari', mantraHi: 'श्री गुरु चरण सरोज रज, निज मन मुकुर सुधारि' },
       { step: 4, title: 'Prasad', titleHi: 'प्रसाद', instruction: 'Offer jaggery and chana, then distribute prasad.', instructionHi: 'गुड़ और चना अर्पित करके प्रसाद वितरित करें।' }
     ]

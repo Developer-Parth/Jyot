@@ -2,7 +2,19 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 
-const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(64).toString('hex');
+const JWT_SECRET = (() => {
+  if (!process.env.JWT_SECRET) {
+    const generated = crypto.randomBytes(64).toString('hex');
+    if (process.env.VERCEL) {
+      console.error('[AUTH] ⚠️  JWT_SECRET not set in Vercel environment! Every cold start will invalidate all user sessions.');
+      console.error('[AUTH] ⚠️  Set JWT_SECRET in Vercel dashboard → Environment Variables.');
+    } else {
+      console.warn('[AUTH] JWT_SECRET not set. Using random fallback — tokens invalidated on restart.');
+    }
+    return generated;
+  }
+  return process.env.JWT_SECRET;
+})();
 const JWT_EXPIRY = '7d';
 const ADMIN_JWT_EXPIRY = '2h';
 

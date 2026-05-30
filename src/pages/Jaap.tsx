@@ -9,6 +9,8 @@ export default function Jaap() {
   const [count, setCount] = useState(0);
   const [goal, setGoal] = useState(108);
   const [mantra, setMantra] = useState('Om Namah Shivaya');
+  const [customMantra, setCustomMantra] = useState('');
+  const [speed, setSpeed] = useState(500);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -20,7 +22,8 @@ export default function Jaap() {
     'Om Bhur Bhuva Swaha (Gayatri)',
     'Hare Krishna Hare Rama',
     'Om Gan Ganapataye Namo Namah',
-    'Om Namo Bhagavate Vasudevaya'
+    'Om Namo Bhagavate Vasudevaya',
+    'Custom',
   ];
 
   const mantraSpeech: Record<string, string> = {
@@ -31,12 +34,20 @@ export default function Jaap() {
     'Om Namo Bhagavate Vasudevaya': 'ॐ नमो भगवते वासुदेवाय',
   };
 
+  const speedOptions = [
+    { label: 'Slow', value: 800 },
+    { label: 'Medium', value: 500 },
+    { label: 'Fast', value: 300 },
+  ];
+
   const displayFromSpeech: Record<string, string> = {};
   for (const [en, hi] of Object.entries(mantraSpeech)) {
     displayFromSpeech[hi] = en;
   }
 
   const goals = [108, 216, 540, 1080];
+
+  const selectedMantra = mantra === 'Custom' && customMantra ? customMantra : mantra;
 
   useEffect(() => {
     const userId = getUserId();
@@ -56,12 +67,14 @@ export default function Jaap() {
     const userId = getUserId();
     if (!userId) return;
 
+    const saveMantra = mantra === 'Custom' ? customMantra : mantra;
+
     const timeout = window.setTimeout(() => {
-      api.put('/jaap', { mantra, count, goal }).catch(() => undefined);
+      api.put('/jaap', { mantra: saveMantra, count, goal }).catch(() => undefined);
     }, 250);
 
     return () => window.clearTimeout(timeout);
-  }, [count, goal, mantra, hasLoaded]);
+  }, [count, goal, mantra, customMantra, hasLoaded]);
 
   const handleTap = () => {
     if (count < goal) {
@@ -79,11 +92,11 @@ export default function Jaap() {
       setIsPlaying(false);
       const userId = getUserId();
       if (userId) {
-        api.put('/jaap', { mantra, count, goal, completed: true }).catch(() => undefined);
+        api.put('/jaap', { mantra: selectedMantra, count, goal, completed: true }).catch(() => undefined);
       }
       setTimeout(() => setShowCelebration(false), 3000);
     }
-  }, [count, goal]);
+  }, [count, goal, selectedMantra]);
 
   useEffect(() => {
     let interval: number;
@@ -98,12 +111,12 @@ export default function Jaap() {
           }
           return prev;
         });
-      }, 500);
+      }, speed);
     }
     return () => {
       if (interval) window.clearInterval(interval);
     };
-  }, [isPlaying, goal]);
+  }, [isPlaying, goal, speed]);
 
   const handleResetRequest = () => {
     // Only ask for confirmation if there's progress to lose
@@ -163,6 +176,35 @@ export default function Jaap() {
                   </select>
                   <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
                 </div>
+                {mantra === 'Custom' && (
+                  <input
+                    type="text"
+                    value={customMantra}
+                    onChange={(e) => setCustomMantra(e.target.value)}
+                    placeholder="Type your mantra..."
+                    className="w-full mt-2 bg-stone-50 border border-stone-200 text-stone-800 text-sm rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-orange-500"
+                    autoFocus
+                  />
+                )}
+              </div>
+              
+              <div>
+                <label className="block text-xs font-bold tracking-widest text-stone-400 uppercase mb-2">Speed</label>
+                <div className="flex gap-2">
+                  {speedOptions.map(s => (
+                    <button
+                      key={s.value}
+                      onClick={() => setSpeed(s.value)}
+                      className={`flex-1 py-2 text-sm rounded-xl border transition-colors ${
+                        speed === s.value
+                          ? 'bg-orange-50 border-orange-200 text-orange-700 font-medium'
+                          : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
               </div>
               
               <div>
@@ -194,7 +236,7 @@ export default function Jaap() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-amber-200 rounded-full blur-3xl opacity-25 pointer-events-none"></div>
 
         <div className="text-center mb-8 relative z-10">
-          <h2 className="text-lg font-medium text-stone-800 mb-1">{mantra}</h2>
+          <h2 className="text-lg font-medium text-stone-800 mb-1">{selectedMantra}</h2>
           <p className="text-sm text-stone-500">Goal: {goal}</p>
         </div>
 
@@ -271,7 +313,7 @@ export default function Jaap() {
             <Play className="w-6 h-6 ml-1" />
           </button>
           <button
-            onClick={() => { setCount(prev => prev < goal ? prev + 1 : prev); playChant(mantraSpeech[mantra] || mantra, 'hi'); }}
+            onClick={() => { setCount(prev => prev < goal ? prev + 1 : prev); playChant(mantraSpeech[selectedMantra] || selectedMantra, 'hi'); }}
             className="w-12 h-12 rounded-full bg-amber-100 shadow-sm border border-amber-200 flex items-center justify-center text-rose-700 hover:bg-amber-200 transition-colors"
           >
             <Volume2 className="w-5 h-5" />
@@ -337,7 +379,7 @@ export default function Jaap() {
                 <CheckCircle2 className="w-10 h-10 text-green-600" />
               </div>
               <h3 className="text-2xl font-serif text-stone-900 mb-2">Goal Reached!</h3>
-              <p className="text-stone-500 mb-6">You have successfully completed {goal} jaaps of {mantra}.</p>
+              <p className="text-stone-500 mb-6">You have successfully completed {goal} jaaps of {selectedMantra}.</p>
               <button 
                 onClick={() => { setShowCelebration(false); setCount(0); }}
                 className="w-full py-3 bg-orange-600 text-white rounded-xl font-medium"
