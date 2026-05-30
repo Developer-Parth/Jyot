@@ -1,11 +1,35 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Camera, CameraOff, Circle, Square, Save } from 'lucide-react';
+import { ArrowLeft, Camera, CameraOff, Circle, Square, Save, ShieldAlert, RefreshCw } from 'lucide-react';
 import { api } from '../services/api';
 import { getUserId } from '../services/auth';
 import { saveWishVideo } from '../lib/wishVideoStore';
 
 const MAX_DURATION = 30;
+const isCapacitor = typeof (window as any).Capacitor !== 'undefined';
+
+function getPermissionGuide(): { title: string; steps: string[] } {
+  if (isCapacitor) {
+    return {
+      title: 'App permissions required',
+      steps: [
+        'Open your device Settings',
+        'Go to Apps → Jyot → Permissions',
+        'Enable Camera and Microphone',
+        'Come back and try again',
+      ],
+    };
+  }
+  return {
+    title: 'Browser permissions required',
+    steps: [
+      'Click the lock or info icon in the address bar',
+      'Find Camera and Microphone settings',
+      'Set both to "Allow"',
+      'Reload the page and try again',
+    ],
+  };
+}
 
 export default function RecordWish() {
   const navigate = useNavigate();
@@ -22,6 +46,7 @@ export default function RecordWish() {
   const [saving, setSaving] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [error, setError] = useState('');
+  const [permissionDenied, setPermissionDenied] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewRef = useRef<HTMLVideoElement>(null);
@@ -38,6 +63,8 @@ export default function RecordWish() {
   }, []);
 
   const startCamera = async () => {
+    setError('');
+    setPermissionDenied(false);
     try {
       const s = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
@@ -46,8 +73,20 @@ export default function RecordWish() {
       setStream(s);
       setCameraActive(true);
       if (videoRef.current) videoRef.current.srcObject = s;
-    } catch {
-      setError('Camera access denied. Please allow camera and microphone permissions.');
+    } catch (err: any) {
+      const name = err?.name || '';
+      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+        setPermissionDenied(true);
+        setError(
+          isCapacitor
+            ? 'Camera or microphone permission was denied in the app. Enable them in device Settings > Apps > Jyot > Permissions, then try again.'
+            : 'Camera or microphone permission was denied in the browser. Click the lock icon in the address bar, allow Camera and Microphone, then reload and try again.'
+        );
+      } else if (name === 'NotFoundError') {
+        setError('No camera or microphone found on this device.');
+      } else {
+        setError('Could not access camera. Please check your device permissions.');
+      }
     }
   };
 
@@ -160,10 +199,27 @@ export default function RecordWish() {
 
           <div className="bg-black/5 min-h-[240px] flex items-center justify-center relative">
             {!cameraActive && !recordedUrl ? (
-              <button onClick={startCamera} className="flex flex-col items-center gap-2 text-stone-500 hover:text-stone-700 transition-colors p-8">
-                <Camera className="w-12 h-12" />
-                <span className="text-sm font-medium">Start Camera</span>
-              </button>
+              <div className="p-6 w-full">
+                {permissionDenied ? (
+                  <div className="text-center space-y-4">
+                    <ShieldAlert className="w-12 h-12 text-red-500 mx-auto" />
+                    <p className="text-sm font-medium text-red-700">Permission required</p>
+                    <div className="text-left bg-red-50 rounded-xl p-4 text-xs text-red-800 space-y-1">
+                      {getPermissionGuide().steps.map((step, i) => (
+                        <p key={i}>{i + 1}. {step}</p>
+                      ))}
+                    </div>
+                    <button onClick={startCamera} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-stone-950 text-amber-50 text-sm font-medium hover:bg-stone-800 transition-colors">
+                      <RefreshCw className="w-4 h-4" /> Try Again
+                    </button>
+                  </div>
+                ) : (
+                  <button onClick={startCamera} className="flex flex-col items-center gap-2 text-stone-500 hover:text-stone-700 transition-colors p-8 w-full">
+                    <Camera className="w-12 h-12" />
+                    <span className="text-sm font-medium">Start Camera</span>
+                  </button>
+                )}
+              </div>
             ) : recordedUrl ? (
               <video ref={previewRef} src={recordedUrl} controls className="w-full max-h-[320px] object-contain bg-black" />
             ) : (

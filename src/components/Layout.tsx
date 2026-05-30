@@ -2,7 +2,7 @@ import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { Home, CircleDashed, Sparkles, BookOpen, User, Heart } from 'lucide-react';
 import { cn } from '../lib/utils';
 
-const HIDE_NAV_PATHS = ['/wishes', '/wish/', '/record-wish'];
+const HIDE_NAV_PATHS: string[] = [];
 
 export default function Layout() {
   const location = useLocation();
