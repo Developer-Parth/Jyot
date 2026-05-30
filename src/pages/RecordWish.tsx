@@ -8,6 +8,21 @@ import { saveWishVideo } from '../lib/wishVideoStore';
 const MAX_DURATION = 30;
 const isCapacitor = typeof (window as any).Capacitor !== 'undefined';
 
+function getBestMimeType(): string {
+  const types = [
+    'video/webm;codecs=vp9,opus',
+    'video/webm;codecs=vp8,opus',
+    'video/webm;codecs=vp8',
+    'video/webm',
+    'video/mp4;codecs=h264,aac',
+    'video/mp4',
+  ];
+  for (const t of types) {
+    if (MediaRecorder.isTypeSupported(t)) return t;
+  }
+  return 'video/webm';
+}
+
 function getPermissionGuide(): { title: string; steps: string[] } {
   if (isCapacitor) {
     return {
@@ -98,27 +113,49 @@ export default function RecordWish() {
 
   const startRecording = () => {
     if (!stream) return;
+    setError('');
     chunksRef.current = [];
     setDuration(0);
     setRecordedBlob(null);
     if (recordedUrl) URL.revokeObjectURL(recordedUrl);
     setRecordedUrl(null);
 
-    const recorder = new MediaRecorder(stream, { mimeType: 'video/webm;codecs=vp9,opus' });
+    const mimeType = getBestMimeType();
+    let recorder: MediaRecorder;
+
+    try {
+      recorder = new MediaRecorder(stream, { mimeType });
+    } catch {
+      setError('Recording is not supported on this device.');
+      return;
+    }
+
     mediaRecorderRef.current = recorder;
 
     recorder.ondataavailable = (e) => {
       if (e.data.size > 0) chunksRef.current.push(e.data);
     };
 
+    recorder.onerror = () => {
+      setError('Recording failed. Please try again.');
+      clearInterval(timerRef.current);
+      setRecording(false);
+    };
+
     recorder.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+      const blob = new Blob(chunksRef.current, { type: mimeType.split(';')[0] });
       setRecordedBlob(blob);
       setRecordedUrl(URL.createObjectURL(blob));
       clearInterval(timerRef.current);
     };
 
-    recorder.start(100);
+    try {
+      recorder.start(100);
+    } catch {
+      setError('Could not start recording. Please try again.');
+      return;
+    }
+
     setRecording(true);
 
     timerRef.current = window.setInterval(() => {
