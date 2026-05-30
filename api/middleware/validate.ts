@@ -54,13 +54,7 @@ export function validatePassword(password: string): string | null {
 
 export function validateLogin(req: Request, res: Response, next: NextFunction) {
   const ip = req.ip || req.socket.remoteAddress || '?';
-  const { name, phone, city, birthDate, deity, gotra, password } = req.body;
-
-  if (typeof name !== 'string' || name.length < 1 || name.length > MAX_NAME) {
-    logRejection('/auth/login', 'invalid name', ip);
-    return res.status(400).json({ error: 'Name is required (max 100 chars).' });
-  }
-  req.body.name = sanitize(name);
+  const { phone, password } = req.body;
 
   if (typeof phone !== 'string' || !/^\d{10}$/.test(phone.replace(/\D/g, ''))) {
     logRejection('/auth/login', 'invalid phone', ip);
@@ -68,14 +62,38 @@ export function validateLogin(req: Request, res: Response, next: NextFunction) {
   }
   req.body.phone = phone.replace(/\D/g, '').slice(0, 10);
 
+  if (typeof password !== 'string' || password.length < 1) {
+    logRejection('/auth/login', 'missing password', ip);
+    return res.status(400).json({ error: 'Password is required.' });
+  }
+
+  next();
+}
+
+export function validateRegistration(req: Request, res: Response, next: NextFunction) {
+  const ip = req.ip || req.socket.remoteAddress || '?';
+  const { name, phone, city, birthDate, deity, gotra, password } = req.body;
+
+  if (typeof name !== 'string' || name.length < 1 || name.length > MAX_NAME) {
+    logRejection('/auth/register', 'invalid name', ip);
+    return res.status(400).json({ error: 'Name is required (max 100 chars).' });
+  }
+  req.body.name = sanitize(name);
+
+  if (typeof phone !== 'string' || !/^\d{10}$/.test(phone.replace(/\D/g, ''))) {
+    logRejection('/auth/register', 'invalid phone', ip);
+    return res.status(400).json({ error: 'Valid 10-digit mobile number is required.' });
+  }
+  req.body.phone = phone.replace(/\D/g, '').slice(0, 10);
+
   if (typeof city !== 'string' || city.length < 1 || city.length > MAX_CITY) {
-    logRejection('/auth/login', 'invalid city', ip);
+    logRejection('/auth/register', 'invalid city', ip);
     return res.status(400).json({ error: 'City is required (max 100 chars).' });
   }
   req.body.city = sanitize(city);
 
   if (birthDate && (typeof birthDate !== 'string' || !isValidDate(birthDate))) {
-    logRejection('/auth/login', 'invalid birthDate', ip);
+    logRejection('/auth/register', 'invalid birthDate', ip);
     return res.status(400).json({ error: 'Invalid birth date.' });
   }
 
@@ -87,13 +105,13 @@ export function validateLogin(req: Request, res: Response, next: NextFunction) {
   }
 
   if (typeof password !== 'string') {
-    logRejection('/auth/login', 'missing password', ip);
+    logRejection('/auth/register', 'missing password', ip);
     return res.status(400).json({ error: 'Password is required.' });
   }
 
   const pwErr = validatePassword(password);
   if (pwErr) {
-    logRejection('/auth/login', 'weak password', ip);
+    logRejection('/auth/register', 'weak password', ip);
     return res.status(400).json({ error: pwErr });
   }
 

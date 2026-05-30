@@ -33,24 +33,22 @@ async function request<T>(method: string, endpoint: string, body?: any): Promise
 
     console.log(`[API] response status: ${response.status} ${response.statusText}`);
 
+    let errorData: any = {};
+    try {
+      errorData = await response.json();
+      console.log(`[API] error body:`, errorData);
+    } catch {
+      const text = await response.text().catch(() => '');
+      console.log(`[API] non-json error body (first 200 chars):`, text.slice(0, 200));
+      errorData = { error: text || `HTTP error ${response.status}` };
+    }
+
     if (!response.ok) {
       if (response.status === 401) {
         clearToken();
-        const currentPath = window.location.pathname;
-        if (currentPath !== '/' && !currentPath.includes('/login') && !currentPath.includes('/onboarding') && !currentPath.includes('/privacy-policy') && !currentPath.includes('/admin')) {
-          window.location.href = '/';
-        }
+        window.dispatchEvent(new CustomEvent('auth:logout'));
       }
 
-      let errorData: any = {};
-      try {
-        errorData = await response.json();
-        console.log(`[API] error body:`, errorData);
-      } catch {
-        const text = await response.text().catch(() => '');
-        console.log(`[API] non-json error body (first 200 chars):`, text.slice(0, 200));
-        errorData = { error: text || `HTTP error ${response.status}` };
-      }
       throw new Error(errorData.error || `HTTP error ${response.status}`);
     }
 

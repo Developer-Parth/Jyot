@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { ArrowRight, Calendar, Eye, EyeOff, MapPin, Phone, UserRound, KeyRound } from 'lucide-react';
+import { ArrowRight, Calendar, Eye, EyeOff, MapPin, Phone, UserRound, KeyRound, UserPlus } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../services/api';
 import { setToken } from '../services/auth';
@@ -50,6 +50,8 @@ function PasswordStrength({ password }: { password: string }) {
   );
 }
 
+type LoginMode = 'login' | 'register' | 'legacy-setup';
+
 export default function Login({ onLogin }: { onLogin: (userId: number) => void }) {
   const [form, setForm] = useState({
     name: '',
@@ -67,6 +69,7 @@ export default function Login({ onLogin }: { onLogin: (userId: number) => void }
   const [error, setError] = useState('');
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [mode, setMode] = useState<LoginMode>('login');
 
   const age = getAge(form.birthDate);
   const isUnderage = age > 0 && age < 13;
@@ -87,15 +90,53 @@ export default function Login({ onLogin }: { onLogin: (userId: number) => void }
     setError('');
 
     try {
-      const response = await api.post<{ token: string; user: { id: number } }>('/auth/login', form);
+      if (mode === 'register') {
+        const response = await api.post<{ token: string; user: { id: number } }>('/auth/register', form);
+        setToken(response.token);
+        onLogin(response.user.id);
+        return;
+      }
+
+      if (mode === 'legacy-setup') {
+        const response = await api.post<{ token: string; user: { id: number } }>('/auth/setup-password', {
+          phone: form.phone,
+          name: form.name,
+          password: form.password,
+        });
+        setToken(response.token);
+        onLogin(response.user.id);
+        return;
+      }
+
+      const response = await api.post<{ token: string; user: { id: number } }>('/auth/login', {
+        phone: form.phone,
+        password: form.password,
+      });
       setToken(response.token);
       onLogin(response.user.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not create your profile.');
+      const message = err instanceof Error ? err.message : 'Something went wrong.';
+
+      if (mode === 'login' && (message.includes('No account found') || message.includes('register first'))) {
+        setMode('register');
+        setError('No account found with this number. Please complete registration below.');
+      } else if (mode === 'login' && message.includes('set up')) {
+        setMode('legacy-setup');
+        setError('Your account needs a password. Set one below to continue.');
+      } else {
+        setError(message);
+      }
     } finally {
       setIsLoading(false);
     }
   };
+
+  const switchMode = (newMode: LoginMode) => {
+    setMode(newMode);
+    setError('');
+  };
+
+  const buttonLabel = isLoading ? 'Please wait...' : mode === 'register' ? 'Create Account' : mode === 'legacy-setup' ? 'Set Password & Enter' : 'Enter Sanctuary';
 
   return (
     <div className="min-h-screen bg-transparent flex flex-col max-w-md mx-auto relative overflow-hidden">
@@ -105,7 +146,9 @@ export default function Login({ onLogin }: { onLogin: (userId: number) => void }
         </div>
 
         <h1 className="text-4xl font-serif text-stone-950 text-center mb-2">{APP_NAME}</h1>
-        <p className="text-stone-600 text-center mb-8">Begin with the details your practice should remember.</p>
+        <p className="text-stone-600 text-center mb-8">
+          {mode === 'register' ? 'Create your spiritual profile.' : mode === 'legacy-setup' ? 'Set up your password to continue.' : 'Begin with the details your practice should remember.'}
+        </p>
 
         <motion.form
           onSubmit={handleLogin}
@@ -161,7 +204,7 @@ export default function Login({ onLogin }: { onLogin: (userId: number) => void }
             <label className="block text-sm font-medium text-stone-700 mb-2">Password</label>
             <div className="relative">
               <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-amber-700" />
-              <input type={showPassword ? 'text' : 'password'} placeholder="Create a password" className="w-full pl-12 pr-12 py-4 rounded-2xl border border-amber-200 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all bg-white/90 text-lg" value={form.password} onChange={(event) => updateField('password', event.target.value)} />
+              <input type={showPassword ? 'text' : 'password'} placeholder={mode === 'legacy-setup' ? 'Set a new password' : 'Create a password'} className="w-full pl-12 pr-12 py-4 rounded-2xl border border-amber-200 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all bg-white/90 text-lg" value={form.password} onChange={(event) => updateField('password', event.target.value)} />
               <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600">
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
@@ -177,9 +220,26 @@ export default function Login({ onLogin }: { onLogin: (userId: number) => void }
           {error && <p className="text-sm text-red-600 text-center">{error}</p>}
 
           <button type="submit" disabled={!form.name || form.phone.length < 10 || !form.city || isLoading} className="w-full py-4 rounded-2xl bg-stone-950 text-amber-50 font-medium text-lg shadow-lg shadow-stone-900/20 flex items-center justify-center gap-2 hover:bg-stone-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-            {isLoading ? 'Preparing...' : 'Enter Sanctuary'} <ArrowRight className="w-5 h-5" />
+            {isLoading ? 'Please wait...' : buttonLabel} {isLoading ? null : <>{mode === 'register' ? <UserPlus className="w-5 h-5" /> : <ArrowRight className="w-5 h-5" />}</>}
           </button>
         </motion.form>
+
+        {mode === 'register' && (
+          <p className="text-xs text-stone-500 text-center mt-3">
+            Already have an account?{' '}
+            <button type="button" onClick={() => switchMode('login')} className="text-amber-700 underline hover:text-amber-900 font-medium bg-transparent border-none cursor-pointer">
+              Log in
+            </button>
+          </p>
+        )}
+
+        {mode === 'legacy-setup' && (
+          <p className="text-xs text-stone-500 text-center mt-3">
+            <button type="button" onClick={() => switchMode('login')} className="text-amber-700 underline hover:text-amber-900 font-medium bg-transparent border-none cursor-pointer">
+              Back to login
+            </button>
+          </p>
+        )}
 
         <p className="text-xs text-stone-400 text-center mt-4">
           By continuing, you agree to our{' '}

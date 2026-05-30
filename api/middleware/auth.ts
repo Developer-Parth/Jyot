@@ -1,20 +1,38 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
 
-const JWT_SECRET = (() => {
+let _jwtSecret: string | null = null;
+
+function getJwtSecret(): string {
+  if (_jwtSecret) return _jwtSecret;
   if (!process.env.JWT_SECRET) {
-    const generated = crypto.randomBytes(64).toString('hex');
-    if (process.env.VERCEL) {
-      console.error('[AUTH] ⚠️  JWT_SECRET not set in Vercel environment! Every cold start will invalidate all user sessions.');
-      console.error('[AUTH] ⚠️  Set JWT_SECRET in Vercel dashboard → Environment Variables.');
-    } else {
-      console.warn('[AUTH] JWT_SECRET not set. Using random fallback — tokens invalidated on restart.');
-    }
-    return generated;
+    throw new Error(
+      '[AUTH] JWT_SECRET environment variable is not set.\n' +
+      '  Generate one: node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"\n' +
+      '  Then set it in .env (local) or Vercel dashboard (all environments).\n' +
+      '  Without a stable JWT_SECRET, every restart invalidates all user sessions.'
+    );
   }
-  return process.env.JWT_SECRET;
-})();
+  _jwtSecret = process.env.JWT_SECRET;
+  return _jwtSecret;
+}
+
+export function validateEnv(): void {
+  if (!process.env.JWT_SECRET) {
+    const msg =
+      '[AUTH] FATAL: JWT_SECRET environment variable is not set.\n' +
+      '  Generate one: node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"\n' +
+      '  Then set it in:\n' +
+      '    - .env file (local development)\n' +
+      '    - Vercel dashboard → Environment Variables (Production, Preview, Development)\n' +
+      '  Without a stable JWT_SECRET:\n' +
+      '    - Every server restart / cold start invalidates ALL user sessions\n' +
+      '    - Users are force-logged out and must re-enter credentials\n' +
+      '  No fallback secret will be generated — this is a hard failure.';
+    throw new Error(msg);
+  }
+}
+
 const JWT_EXPIRY = '7d';
 const ADMIN_JWT_EXPIRY = '2h';
 
@@ -32,11 +50,11 @@ declare global {
 }
 
 export function generateToken(userId: number): string {
-  return jwt.sign({ userId, role: 'user' } satisfies JwtPayload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+  return jwt.sign({ userId, role: 'user' } satisfies JwtPayload, getJwtSecret(), { expiresIn: JWT_EXPIRY });
 }
 
 export function generateAdminToken(): string {
-  return jwt.sign({ userId: 0, role: 'admin' } satisfies JwtPayload, JWT_SECRET, { expiresIn: ADMIN_JWT_EXPIRY });
+  return jwt.sign({ userId: 0, role: 'admin' } satisfies JwtPayload, getJwtSecret(), { expiresIn: ADMIN_JWT_EXPIRY });
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
@@ -48,7 +66,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 
   const token = auth.slice(7);
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as JwtPayload;
+    const payload = jwt.verify(token, getJwtSecret()) as JwtPayload;
     req.user = payload;
     next();
   } catch (err: any) {
@@ -69,7 +87,7 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction): v
 
   const token = auth.slice(7);
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as JwtPayload;
+    const payload = jwt.verify(token, getJwtSecret()) as JwtPayload;
     if (payload.role !== 'admin') {
       res.status(403).json({ error: 'Admin access required.' });
       return;

@@ -33,6 +33,13 @@ export default function App() {
     const onboarding = localStorage.getItem('hasCompletedOnboarding') === 'true';
     setHasCompletedOnboarding(onboarding);
     setIsAuth(onboarding ? checkAuth() : false);
+
+    const handleForceLogout = () => {
+      clearToken();
+      setIsAuth(false);
+    };
+    window.addEventListener('auth:logout', handleForceLogout);
+    return () => window.removeEventListener('auth:logout', handleForceLogout);
   }, []);
 
   if (isAuth === null || hasCompletedOnboarding === null) {
@@ -45,7 +52,6 @@ export default function App() {
 
   const handleLogout = () => {
     clearToken();
-    localStorage.removeItem('isAuthenticated');
     setIsAuth(false);
   };
 

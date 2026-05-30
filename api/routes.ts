@@ -9,12 +9,14 @@ import { palmReadingLimiter, authLimiter } from './middleware/rateLimiter.js';
 import { requireAuth, requireAdmin, generateToken, generateAdminToken } from './middleware/auth.js';
 import {
   validateLogin,
+  validateRegistration,
   validateUserUpdate,
   validatePalmReading,
   validateJaapSave,
   validateWishCreate,
   validateAdminLogin,
   validateSubscription,
+  validatePassword,
 } from './middleware/validate.js';
 
 const router = Router();
@@ -60,8 +62,46 @@ const stripUser = (user: any) => {
   return rest;
 };
 
-// ── Public: Login ────────────────────────────────────────────
+// ── Public: Login (existing users only) ──────────────────────
 router.post('/auth/login', authLimiter, validateLogin, asyncHandler(async (req, res) => {
+  const { phone, password } = req.body;
+
+  const email = `${String(phone).replace(/\D/g, '')}@jyot.local`;
+  const user = store.findOne<any>('users', u => u.phone === phone || u.email === email);
+
+  if (!user) {
+    res.status(404).json({ error: 'No account found with this number. Please register first.', code: 'ACCOUNT_NOT_FOUND' });
+    return;
+  }
+
+  if (user.password_hash === LEGACY_PLACEHOLDER) {
+    res.status(401).json({
+      error: 'Your account needs a password to be set up. Please set your password.',
+      code: 'LEGACY_ACCOUNT',
+    });
+    return;
+  }
+
+  const match = await bcrypt.compare(password, user.password_hash);
+  if (!match) {
+    console.log(`[SECURITY] Failed login attempt for phone=${phone} (ip=${req.ip})`);
+    res.status(401).json({ error: 'Invalid credentials.' });
+    return;
+  }
+
+  await touchStreak(user.id);
+  const token = generateToken(user.id);
+  const freshUser = store.getById('users', user.id);
+
+  res.json({
+    token,
+    user: stripUser(freshUser),
+    subscription: getCurrentSubscription(user.id) || { plan: 'seeker', status: 'active' },
+  });
+}));
+
+// ── Public: Register (new users only) ────────────────────────
+router.post('/auth/register', authLimiter, validateRegistration, asyncHandler(async (req, res) => {
   const { name, phone, city, birthDate, deity, gotra, password } = req.body;
 
   if (birthDate) {
@@ -77,43 +117,80 @@ router.post('/auth/login', authLimiter, validateLogin, asyncHandler(async (req, 
   }
 
   const email = `${String(phone).replace(/\D/g, '')}@jyot.local`;
-  let user = store.findOne<any>('users', u => u.phone === phone || u.email === email);
-
-  if (user) {
-    // ── Migration: legacy placeholder hash ──
-    if (user.password_hash === LEGACY_PLACEHOLDER) {
-      const hash = await bcrypt.hash(password, SALT_ROUNDS);
-      await store.update('users', user.id, { password_hash: hash });
-      console.log(`[MIGRATION] User ${user.id} password upgraded from placeholder.`);
-    } else {
-      const match = await bcrypt.compare(password, user.password_hash);
-      if (!match) {
-        console.log(`[SECURITY] Failed login attempt for phone=${phone} (ip=${req.ip})`);
-        res.status(401).json({ error: 'Invalid credentials.' });
-        return;
-      }
-    }
-
-    await store.update('users', user.id, {
-      name, phone, city,
-      birth_date: birthDate || '',
-      deity: deity || 'Shiva',
-      gotra: gotra || '',
-    });
-  } else {
-    const password_hash = await bcrypt.hash(password, SALT_ROUNDS);
-    const newUser = await store.create('users', {
-      email,
-      password_hash,
-      name, phone, city,
-      birth_date: birthDate || '',
-      deity: deity || 'Shiva',
-      gotra: gotra || '',
-    });
-    user = newUser;
+  const existing = store.findOne<any>('users', u => u.phone === phone || u.email === email);
+  if (existing) {
+    res.status(409).json({ error: 'An account with this number already exists. Please log in.', code: 'ACCOUNT_EXISTS' });
+    return;
   }
 
-  await touchStreak(user.id);
+  const password_hash = await bcrypt.hash(password, SALT_ROUNDS);
+  const newUser = await store.create('users', {
+    email,
+    password_hash,
+    name, phone, city,
+    birth_date: birthDate || '',
+    deity: deity || 'Shiva',
+    gotra: gotra || '',
+  });
+
+  await touchStreak(newUser.id);
+  const token = generateToken(newUser.id);
+  const freshUser = store.getById('users', newUser.id);
+
+  res.json({
+    token,
+    user: stripUser(freshUser),
+    subscription: getCurrentSubscription(newUser.id) || { plan: 'seeker', status: 'active' },
+  });
+}));
+
+// ── Public: Set password for legacy accounts ─────────────────
+router.post('/auth/setup-password', authLimiter, asyncHandler(async (req, res) => {
+  const { phone, name, password } = req.body;
+
+  if (typeof phone !== 'string' || !/^\d{10}$/.test(phone.replace(/\D/g, ''))) {
+    res.status(400).json({ error: 'Valid 10-digit mobile number is required.' });
+    return;
+  }
+  if (typeof name !== 'string' || name.length < 1) {
+    res.status(400).json({ error: 'Name is required to verify ownership.' });
+    return;
+  }
+  if (typeof password !== 'string' || password.length < 1) {
+    res.status(400).json({ error: 'Password is required.' });
+    return;
+  }
+
+  const pwErr = validatePassword(password);
+  if (pwErr) {
+    res.status(400).json({ error: pwErr });
+    return;
+  }
+
+  const cleanPhone = phone.replace(/\D/g, '').slice(0, 10);
+  const email = `${cleanPhone}@jyot.local`;
+  const user = store.findOne<any>('users', u => u.phone === cleanPhone || u.email === email);
+
+  if (!user) {
+    res.status(404).json({ error: 'Account not found.', code: 'ACCOUNT_NOT_FOUND' });
+    return;
+  }
+
+  if (user.password_hash !== LEGACY_PLACEHOLDER) {
+    res.status(400).json({ error: 'Account already has a password. Please log in.' });
+    return;
+  }
+
+  if (user.name !== name) {
+    console.log(`[SECURITY] Failed legacy password setup: name mismatch for phone=${cleanPhone} (ip=${req.ip})`);
+    res.status(403).json({ error: 'Name does not match our records. Please use the name you registered with.' });
+    return;
+  }
+
+  const hash = await bcrypt.hash(password, SALT_ROUNDS);
+  await store.update('users', user.id, { password_hash: hash });
+  console.log(`[MIGRATION] User ${user.id} password set via legacy setup flow.`);
+
   const token = generateToken(user.id);
   const freshUser = store.getById('users', user.id);
 
