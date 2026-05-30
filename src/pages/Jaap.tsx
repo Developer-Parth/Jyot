@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Settings, RefreshCw, Play, Pause, ChevronDown, CheckCircle2, Volume2 } from 'lucide-react';
 import { api } from '../services/api';
+import { getUserId } from '../services/auth';
 import { playChant, stopChant } from '../lib/sound';
 
 export default function Jaap() {
@@ -38,10 +39,10 @@ export default function Jaap() {
   const goals = [108, 216, 540, 1080];
 
   useEffect(() => {
-    const userId = localStorage.getItem('userId');
+    const userId = getUserId();
     if (!userId) return;
 
-    api.get<{ mantra: string; count: number; goal: number }>(`/jaap/${userId}`)
+    api.get<{ mantra: string; count: number; goal: number }>('/jaap')
       .then((saved) => {
         setMantra(displayFromSpeech[saved.mantra] || saved.mantra || 'Om Namah Shivaya');
         setCount(Number(saved.count || 0));
@@ -52,11 +53,11 @@ export default function Jaap() {
 
   useEffect(() => {
     if (!hasLoaded) return;
-    const userId = localStorage.getItem('userId');
+    const userId = getUserId();
     if (!userId) return;
 
     const timeout = window.setTimeout(() => {
-      api.put(`/jaap/${userId}`, { mantra, count, goal }).catch(() => undefined);
+      api.put('/jaap', { mantra, count, goal }).catch(() => undefined);
     }, 250);
 
     return () => window.clearTimeout(timeout);
@@ -76,9 +77,9 @@ export default function Jaap() {
     if (count === goal && count > 0) {
       setShowCelebration(true);
       setIsPlaying(false);
-      const userId = localStorage.getItem('userId');
+      const userId = getUserId();
       if (userId) {
-        api.put(`/jaap/${userId}`, { mantra, count, goal, completed: true }).catch(() => undefined);
+        api.put('/jaap', { mantra, count, goal, completed: true }).catch(() => undefined);
       }
       setTimeout(() => setShowCelebration(false), 3000);
     }

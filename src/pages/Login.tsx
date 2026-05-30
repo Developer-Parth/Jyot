@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { ArrowRight, Calendar, MapPin, Phone, UserRound } from 'lucide-react';
+import { ArrowRight, Calendar, Eye, EyeOff, MapPin, Phone, UserRound, KeyRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../services/api';
+import { setToken } from '../services/auth';
 import { APP_NAME } from '../lib/branding';
 
 function getAge(birthDate: string): number {
@@ -15,6 +16,40 @@ function getAge(birthDate: string): number {
   return age;
 }
 
+const PASSWORD_RULES = [
+  { test: (p: string) => p.length >= 8, label: 'At least 8 characters' },
+  { test: (p: string) => /[a-z]/.test(p), label: 'One lowercase letter' },
+  { test: (p: string) => /[A-Z]/.test(p), label: 'One uppercase letter' },
+  { test: (p: string) => /[0-9]/.test(p), label: 'One number' },
+  { test: (p: string) => /[^a-zA-Z0-9]/.test(p), label: 'One special character' },
+];
+
+function PasswordStrength({ password }: { password: string }) {
+  if (!password) return null;
+  const passed = PASSWORD_RULES.filter(r => r.test(password)).length;
+  return (
+    <div className="mt-2 space-y-1">
+      {PASSWORD_RULES.map((rule, i) => {
+        const ok = rule.test(password);
+        return (
+          <div key={i} className={`flex items-center gap-2 text-xs ${ok ? 'text-green-600' : 'text-stone-400'}`}>
+            <span>{ok ? '✓' : '○'}</span>
+            <span>{rule.label}</span>
+          </div>
+        );
+      })}
+      <div className="w-full h-1 bg-stone-200 rounded-full mt-1">
+        <div className={`h-1 rounded-full transition-all ${
+          passed <= 2 ? 'w-1/4 bg-red-500' :
+          passed <= 3 ? 'w-2/4 bg-orange-500' :
+          passed <= 4 ? 'w-3/4 bg-yellow-500' :
+          'w-full bg-green-500'
+        }`} />
+      </div>
+    </div>
+  );
+}
+
 export default function Login({ onLogin }: { onLogin: (userId: number) => void }) {
   const [form, setForm] = useState({
     name: '',
@@ -24,11 +59,14 @@ export default function Login({ onLogin }: { onLogin: (userId: number) => void }
     deity: localStorage.getItem('userPreferences')
       ? JSON.parse(localStorage.getItem('userPreferences')!).deity || 'Shiva'
       : 'Shiva',
-    gotra: ''
+    gotra: '',
+    password: sessionStorage.getItem('onboardingPassword') || '',
   });
+  sessionStorage.removeItem('onboardingPassword');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const age = getAge(form.birthDate);
   const isUnderage = age > 0 && age < 13;
@@ -43,12 +81,14 @@ export default function Login({ onLogin }: { onLogin: (userId: number) => void }
     if (!form.birthDate) { setError('Please enter your birth date.'); return; }
     if (isUnderage) { setError('You must be at least 13 years old to use Jyot.'); return; }
     if (!ageConfirmed) { setError('Please confirm you are at least 13 years old.'); return; }
+    if (!form.password) { setError('Please enter a password.'); return; }
 
     setIsLoading(true);
     setError('');
 
     try {
-      const response = await api.post<{ user: { id: number } }>('/auth/login', form);
+      const response = await api.post<{ token: string; user: { id: number } }>('/auth/login', form);
+      setToken(response.token);
       onLogin(response.user.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not create your profile.');
@@ -115,6 +155,18 @@ export default function Login({ onLogin }: { onLogin: (userId: number) => void }
           <div className="grid grid-cols-2 gap-3">
             <input className="w-full px-4 py-4 rounded-2xl border border-amber-200 bg-white/90 outline-none focus:ring-2 focus:ring-amber-500" value={form.deity} onChange={(event) => updateField('deity', event.target.value)} placeholder="Ishta Devata" />
             <input className="w-full px-4 py-4 rounded-2xl border border-amber-200 bg-white/90 outline-none focus:ring-2 focus:ring-amber-500" value={form.gotra} onChange={(event) => updateField('gotra', event.target.value)} placeholder="Gotra optional" />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-2">Password</label>
+            <div className="relative">
+              <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-amber-700" />
+              <input type={showPassword ? 'text' : 'password'} placeholder="Create a password" className="w-full pl-12 pr-12 py-4 rounded-2xl border border-amber-200 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all bg-white/90 text-lg" value={form.password} onChange={(event) => updateField('password', event.target.value)} />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600">
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
+            <PasswordStrength password={form.password} />
           </div>
 
           <label className="flex items-start gap-3 cursor-pointer p-3 rounded-xl border border-stone-200 bg-white/50">

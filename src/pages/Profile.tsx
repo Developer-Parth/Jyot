@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { Award, BarChart3, ChevronRight, Crown, Flame, LogOut, Save, Settings, User, X } from 'lucide-react';
+import { Award, BarChart3, ChevronRight, Crown, Flame, LogOut, Mail, Save, Settings, Trash2, User, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../services/api';
+import { getUserId } from '../services/auth';
 import { getLanguage, languageLabels, setLanguage, type Language } from '../data/i18n';
 
 type ProfileData = {
@@ -37,14 +38,17 @@ export default function Profile({ onLogout }: { onLogout: () => void }) {
   const [language, updateLanguage] = useState<Language>(getLanguage());
   const [isEditing, setIsEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteText, setDeleteText] = useState('');
+  const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({
     name: '', phone: '', city: '', deity: 'Shiva', gotra: '', reminderTime: '06:00',
   });
 
   useEffect(() => {
-    const userId = localStorage.getItem('userId');
+    const userId = getUserId();
     if (!userId) return;
-    api.get<ProfileData>(`/users/${userId}`).then((d) => {
+    api.get<ProfileData>('/users/me').then((d) => {
       setData(d);
       setForm({
         name: d.user.name || '',
@@ -65,11 +69,11 @@ export default function Profile({ onLogout }: { onLogout: () => void }) {
   };
 
   const handleSave = async () => {
-    const userId = localStorage.getItem('userId');
+    const userId = getUserId();
     if (!userId) return;
     setSaving(true);
     try {
-      const result = await api.put<{ user: ProfileData['user'] }>(`/users/${userId}`, {
+      const result = await api.put<{ user: ProfileData['user'] }>('/users/me', {
         name: form.name,
         phone: form.phone,
         city: form.city,
@@ -98,6 +102,21 @@ export default function Profile({ onLogout }: { onLogout: () => void }) {
       });
     }
     setIsEditing(!isEditing);
+  };
+
+  const handleDeleteAccount = async () => {
+    const userId = getUserId();
+    if (!userId || deleteText !== 'DELETE') return;
+    setDeleting(true);
+    try {
+      await api.del('/users/me');
+      localStorage.clear();
+      sessionStorage.clear();
+      window.location.href = '/';
+    } catch {
+      setDeleting(false);
+      setDeleteText('');
+    }
   };
 
   return (
@@ -234,9 +253,36 @@ export default function Profile({ onLogout }: { onLogout: () => void }) {
         </section>
 
         <section className="pt-4 space-y-3">
+          <Link to="/wishes" className="block w-full py-3 rounded-2xl border border-amber-200 bg-amber-50/50 text-stone-700 font-medium text-sm text-center hover:bg-amber-100 transition-colors">
+            My Wishes
+          </Link>
           <Link to="/privacy-policy" className="block w-full py-3 rounded-2xl border border-stone-200 bg-white/50 text-stone-600 font-medium text-sm text-center hover:bg-stone-50 transition-colors">
             Privacy Policy
           </Link>
+          <a href="mailto:parththukral16@gmail.com" className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl border border-stone-200 bg-white/50 text-stone-600 font-medium text-sm hover:bg-stone-50 transition-colors">
+            <Mail className="w-4 h-4" /> Feedback & Suggestions
+          </a>
+
+          {!showDeleteConfirm ? (
+            <button onClick={() => setShowDeleteConfirm(true)} className="w-full py-3 rounded-2xl border border-red-200 bg-red-50/50 text-red-700 font-medium text-sm flex items-center justify-center gap-2 hover:bg-red-100 transition-colors">
+              <Trash2 className="w-4 h-4" /> Delete Account
+            </button>
+          ) : (
+            <div className="bg-red-50/90 backdrop-blur-md rounded-2xl border border-red-200 p-4 space-y-3">
+              <p className="text-sm text-red-800 font-medium">This action cannot be undone.</p>
+              <p className="text-xs text-red-600">All your profile data, jaap history, palm readings, and wishes will be permanently deleted.</p>
+              <input type="text" placeholder='Type DELETE to confirm' value={deleteText} onChange={e => setDeleteText(e.target.value)} className="w-full px-3 py-2 rounded-xl border border-red-200 text-sm outline-none focus:ring-2 focus:ring-red-500 bg-white" />
+              <div className="flex gap-2">
+                <button onClick={() => { setShowDeleteConfirm(false); setDeleteText(''); }} className="flex-1 py-2 rounded-xl border border-stone-200 bg-white text-stone-600 text-sm hover:bg-stone-50 transition-colors">
+                  Cancel
+                </button>
+                <button onClick={handleDeleteAccount} disabled={deleteText !== 'DELETE' || deleting} className="flex-1 py-2 rounded-xl bg-red-600 text-white text-sm font-medium disabled:opacity-50 hover:bg-red-700 transition-colors">
+                  {deleting ? 'Deleting...' : 'Delete Forever'}
+                </button>
+              </div>
+            </div>
+          )}
+
           <button onClick={onLogout} className="w-full py-4 rounded-2xl bg-stone-950 text-amber-50 font-medium text-sm flex items-center justify-center gap-2 hover:bg-stone-800 transition-colors">
             <LogOut className="w-4 h-4" /> Log Out
           </button>

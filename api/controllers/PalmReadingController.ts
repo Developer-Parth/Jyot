@@ -16,6 +16,7 @@ export class PalmReadingController {
         return;
       }
 
+      const userId = req.user?.userId;
       const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
       console.log('[PALM] base64Data length after strip:', base64Data.length);
 
@@ -24,7 +25,7 @@ export class PalmReadingController {
       console.log('[PALM] AiService.getPalmReading() succeeded, reading length:', reading?.length);
 
       console.log('[PALM] calling ReadingModel.create()...');
-      await ReadingModel.create({ reading_text: reading });
+      await ReadingModel.create({ reading_text: reading, user_id: userId });
       console.log('[PALM] ReadingModel.create() succeeded');
 
       res.json({ reading });

@@ -6,6 +6,8 @@ const MAX_DEITY = 100;
 const MAX_GOTRA = 100;
 const MAX_MANTRA = 200;
 const MAX_IMAGE_BASE64 = 4 * 1024 * 1024;
+const MAX_WISH_TITLE = 200;
+const MAX_WISH_DESC = 2000;
 
 function sanitize(v: string): string {
   return v.replace(/<[^>]*>/g, '').trim();
@@ -23,9 +25,36 @@ function logRejection(route: string, reason: string, ip: string) {
   console.log(`[SECURITY] Rejected ${route}: ${reason} (ip=${ip})`);
 }
 
+export const PASSWORD_RULES = {
+  minLength: 8,
+  requireLowercase: true,
+  requireUppercase: true,
+  requireNumber: true,
+  requireSpecial: true,
+};
+
+export function validatePassword(password: string): string | null {
+  if (!password || password.length < PASSWORD_RULES.minLength) {
+    return 'Password must be at least 8 characters.';
+  }
+  if (PASSWORD_RULES.requireLowercase && !/[a-z]/.test(password)) {
+    return 'Password must include at least one lowercase letter.';
+  }
+  if (PASSWORD_RULES.requireUppercase && !/[A-Z]/.test(password)) {
+    return 'Password must include at least one uppercase letter.';
+  }
+  if (PASSWORD_RULES.requireNumber && !/[0-9]/.test(password)) {
+    return 'Password must include at least one number.';
+  }
+  if (PASSWORD_RULES.requireSpecial && !/[^a-zA-Z0-9]/.test(password)) {
+    return 'Password must include at least one special character.';
+  }
+  return null;
+}
+
 export function validateLogin(req: Request, res: Response, next: NextFunction) {
   const ip = req.ip || req.socket.remoteAddress || '?';
-  const { name, phone, city, birthDate, deity, gotra } = req.body;
+  const { name, phone, city, birthDate, deity, gotra, password } = req.body;
 
   if (typeof name !== 'string' || name.length < 1 || name.length > MAX_NAME) {
     logRejection('/auth/login', 'invalid name', ip);
@@ -55,6 +84,17 @@ export function validateLogin(req: Request, res: Response, next: NextFunction) {
   }
   if (gotra && typeof gotra === 'string') {
     req.body.gotra = sanitize(gotra).slice(0, MAX_GOTRA);
+  }
+
+  if (typeof password !== 'string') {
+    logRejection('/auth/login', 'missing password', ip);
+    return res.status(400).json({ error: 'Password is required.' });
+  }
+
+  const pwErr = validatePassword(password);
+  if (pwErr) {
+    logRejection('/auth/login', 'weak password', ip);
+    return res.status(400).json({ error: pwErr });
   }
 
   next();
@@ -171,6 +211,43 @@ export function validateJaapSave(req: Request, res: Response, next: NextFunction
   if (goal !== undefined && (typeof goal !== 'number' || goal < 1 || goal > 999999)) {
     logRejection('/jaap/:userId', 'invalid goal', ip);
     return res.status(400).json({ error: 'Invalid goal value.' });
+  }
+
+  next();
+}
+
+export function validateWishCreate(req: Request, res: Response, next: NextFunction) {
+  const ip = req.ip || req.socket.remoteAddress || '?';
+  const { title, description } = req.body;
+
+  if (typeof title !== 'string' || title.length < 1 || title.length > MAX_WISH_TITLE) {
+    logRejection('/wishes', 'invalid title', ip);
+    return res.status(400).json({ error: 'Wish title is required (max 200 chars).' });
+  }
+  req.body.title = sanitize(title);
+
+  if (description !== undefined) {
+    if (typeof description !== 'string' || description.length > MAX_WISH_DESC) {
+      logRejection('/wishes', 'invalid description', ip);
+      return res.status(400).json({ error: 'Description must be under 2000 chars.' });
+    }
+    req.body.description = sanitize(description);
+  }
+
+  next();
+}
+
+export function validateAdminLogin(req: Request, res: Response, next: NextFunction) {
+  const ip = req.ip || req.socket.remoteAddress || '?';
+  const { username, password } = req.body;
+
+  if (typeof username !== 'string' || username.length < 1) {
+    logRejection('/admin/login', 'missing username', ip);
+    return res.status(400).json({ error: 'Username is required.' });
+  }
+  if (typeof password !== 'string' || password.length < 1) {
+    logRejection('/admin/login', 'missing password', ip);
+    return res.status(400).json({ error: 'Password is required.' });
   }
 
   next();

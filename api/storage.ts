@@ -115,6 +115,26 @@ class JsonStore {
     await this.flush(name);
     return state.items[idx] as T;
   }
+
+  async delete(name: string, id: number): Promise<boolean> {
+    this.ensureLoaded(name);
+    const state = this.cache.get(name)!;
+    const idx = state.items.findIndex(i => i.id === id);
+    if (idx === -1) return false;
+    state.items.splice(idx, 1);
+    await this.flush(name);
+    return true;
+  }
+
+  async deleteWhere(name: string, predicate: (item: any) => boolean): Promise<number> {
+    this.ensureLoaded(name);
+    const state = this.cache.get(name)!;
+    const before = state.items.length;
+    state.items = state.items.filter(i => !predicate(i));
+    const removed = before - state.items.length;
+    if (removed > 0) await this.flush(name);
+    return removed;
+  }
 }
 
 const store = new JsonStore();

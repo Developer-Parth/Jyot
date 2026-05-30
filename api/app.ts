@@ -6,7 +6,7 @@ import apiRoutes from './routes.js';
 import store from './storage.js';
 import { generalLimiter } from './middleware/rateLimiter.js';
 
-const COLLECTIONS = ['users', 'jaaps', 'subscriptions', 'palm_readings'];
+const COLLECTIONS = ['users', 'jaaps', 'subscriptions', 'palm_readings', 'wishes'];
 
 export function createAppSync() {
   console.log('[APP] createAppSync() start');

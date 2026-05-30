@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import { ArrowRight, BookOpen, Calendar, CalendarPlus, CircleDashed, Flame, MapPin, Moon, Sparkles, Sun } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api } from '../services/api';
+import { getUserId } from '../services/auth';
 import { APP_NAME } from '../lib/branding';
 
 function icsDate(date: Date): string {
@@ -68,10 +69,10 @@ export default function Home() {
     else if (hour < 18) setGreeting('Shubh Dophar');
     else setGreeting('Shubh Sandhya');
 
-    const userId = localStorage.getItem('userId');
+    const userId = getUserId();
     if (!userId) return;
 
-    api.get<HomeData>(`/users/${userId}`)
+    api.get<HomeData>('/users/me')
       .then((data) => {
         setHomeData(data);
         return api.get<Panchang>(`/panchang?city=${encodeURIComponent(data.user.city || 'India')}`);

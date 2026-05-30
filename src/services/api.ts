@@ -1,3 +1,5 @@
+import { getToken, clearToken } from './auth';
+
 const isCapacitor = typeof (window as any).Capacitor !== 'undefined';
 
 const API_BASE = isCapacitor ? 'https://myjyot.xyz' : '';
@@ -11,9 +13,16 @@ async function request<T>(method: string, endpoint: string, body?: any): Promise
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+
+  const token = getToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const opts: RequestInit = {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     signal: controller.signal,
   };
   if (body) opts.body = JSON.stringify(body);
@@ -25,6 +34,14 @@ async function request<T>(method: string, endpoint: string, body?: any): Promise
     console.log(`[API] response status: ${response.status} ${response.statusText}`);
 
     if (!response.ok) {
+      if (response.status === 401) {
+        clearToken();
+        const currentPath = window.location.pathname;
+        if (currentPath !== '/' && !currentPath.includes('/login') && !currentPath.includes('/onboarding') && !currentPath.includes('/privacy-policy') && !currentPath.includes('/admin')) {
+          window.location.href = '/';
+        }
+      }
+
       let errorData: any = {};
       try {
         errorData = await response.json();
@@ -60,5 +77,9 @@ export const api = {
 
   async put<T>(endpoint: string, body: any): Promise<T> {
     return request<T>('PUT', endpoint, body);
+  },
+
+  async del<T = any>(endpoint: string): Promise<T> {
+    return request<T>('DELETE', endpoint);
   }
 };

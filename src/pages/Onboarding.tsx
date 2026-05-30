@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowRight, Check, MapPin, Bell, Heart, Calendar } from 'lucide-react';
+import { ArrowRight, Check, MapPin, Bell, Heart, Calendar, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 function getAge(birthDate: string): number {
@@ -13,18 +13,29 @@ function getAge(birthDate: string): number {
   return age;
 }
 
+const PASSWORD_RULES = [
+  { test: (p: string) => p.length >= 8, label: 'At least 8 characters' },
+  { test: (p: string) => /[a-z]/.test(p), label: 'One lowercase letter' },
+  { test: (p: string) => /[A-Z]/.test(p), label: 'One uppercase letter' },
+  { test: (p: string) => /[0-9]/.test(p), label: 'One number' },
+  { test: (p: string) => /[^a-zA-Z0-9]/.test(p), label: 'One special character' },
+];
+
 export default function Onboarding({ onComplete }: { onComplete: () => void }) {
   const [step, setStep] = useState(0);
   const [ageConfirmed, setAgeConfirmed] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const [preferences, setPreferences] = useState({
     city: '',
     deity: '',
     birthDate: '',
+    password: '',
   });
 
   const age = getAge(preferences.birthDate);
   const isUnderage = age > 0 && age < 13;
+  const passwordValid = PASSWORD_RULES.every(r => r.test(preferences.password));
 
   const steps = [
     {
@@ -106,6 +117,29 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
               <p className="mt-1 text-xs text-red-600">You must be at least 13 years old to use Jyot.</p>
             )}
           </div>
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1">Password</label>
+            <div className="relative">
+              <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
+              <input type={showPassword ? 'text' : 'password'} required placeholder="Create a secure password" className="w-full pl-10 pr-10 py-3 rounded-xl border border-stone-200 focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all" value={preferences.password} onChange={(e) => setPreferences({ ...preferences, password: e.target.value })} />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600">
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+            {preferences.password && (
+              <div className="mt-2 space-y-1">
+                {PASSWORD_RULES.map((rule, i) => {
+                  const ok = rule.test(preferences.password);
+                  return (
+                    <div key={i} className={`flex items-center gap-2 text-xs ${ok ? 'text-green-600' : 'text-stone-400'}`}>
+                      <span>{ok ? '✓' : '○'}</span>
+                      <span>{rule.label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )
     },
@@ -141,12 +175,16 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
 
   const handleNext = () => {
     if (step === 3) {
-      if (!preferences.city.trim() || !preferences.deity || !preferences.birthDate) {
-        alert('Please fill all required fields');
+      if (!preferences.city.trim() || !preferences.deity || !preferences.birthDate || !preferences.password) {
+        alert('Please fill all required fields.');
         return;
       }
       if (isUnderage) {
         alert('You must be at least 13 years old to use Jyot.');
+        return;
+      }
+      if (!passwordValid) {
+        alert('Please create a password that meets all requirements.');
         return;
       }
     }
@@ -166,11 +204,12 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
         deity: preferences.deity,
       }));
       localStorage.setItem('userBirthDate', preferences.birthDate);
+      sessionStorage.setItem('onboardingPassword', preferences.password);
       onComplete();
     }
   };
 
-  const isPersonalizationInvalid = step === 3 && (!preferences.city.trim() || !preferences.deity || !preferences.birthDate || isUnderage);
+  const isPersonalizationInvalid = step === 3 && (!preferences.city.trim() || !preferences.deity || !preferences.birthDate || !preferences.password || isUnderage || !passwordValid);
 
   return (
     <div className="min-h-screen bg-transparent flex flex-col max-w-md mx-auto relative overflow-hidden">

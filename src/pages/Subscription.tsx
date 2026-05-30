@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { ArrowLeft, Check, Crown, Shield, Star } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../services/api';
+import { getUserId } from '../services/auth';
 
 type Plan = {
   id: string;
@@ -50,7 +51,7 @@ export default function Subscription() {
 
   const activatePlan = async () => {
     if (!selectedPlan) return;
-    const userId = localStorage.getItem('userId');
+    const userId = getUserId();
     if (!userId) return;
 
     setIsSaving(true);
@@ -59,7 +60,6 @@ export default function Subscription() {
     try {
       const amount = billingCycle === 'annual' ? selectedPlan.annual : selectedPlan.monthly;
       const response = await api.post<{ message: string }>('/subscriptions', {
-        userId,
         plan: selectedPlan.id,
         billingCycle,
         amount,

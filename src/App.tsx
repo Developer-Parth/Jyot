@@ -16,23 +16,37 @@ import Onboarding from './pages/Onboarding';
 import Login from './pages/Login';
 import Subscription from './pages/Subscription';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import WishList from './pages/WishList';
+import WishDetail from './pages/WishDetail';
+import RecordWish from './pages/RecordWish';
+import AdminDashboard from './pages/AdminDashboard';
 import LiveBackground from './components/LiveBackground';
 import { Analytics } from "@vercel/analytics/react"
+import { getToken, clearToken, isAuthenticated as checkAuth } from './services/auth';
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [isAuth, setIsAuth] = useState<boolean | null>(null);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const auth = localStorage.getItem('isAuthenticated') === 'true';
     const onboarding = localStorage.getItem('hasCompletedOnboarding') === 'true';
-    setIsAuthenticated(auth);
     setHasCompletedOnboarding(onboarding);
+    setIsAuth(onboarding ? checkAuth() : false);
   }, []);
 
-  if (isAuthenticated === null || hasCompletedOnboarding === null) {
+  if (isAuth === null || hasCompletedOnboarding === null) {
     return <div className="min-h-screen bg-orange-50 flex items-center justify-center">Loading...</div>;
   }
+
+  const handleLogin = () => {
+    setIsAuth(true);
+  };
+
+  const handleLogout = () => {
+    clearToken();
+    localStorage.removeItem('isAuthenticated');
+    setIsAuth(false);
+  };
 
   return (
     <>
@@ -41,17 +55,14 @@ export default function App() {
       <BrowserRouter>
       <Routes>
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/admin" element={<AdminDashboard />} />
         {!hasCompletedOnboarding ? (
           <Route path="*" element={<Onboarding onComplete={() => {
             localStorage.setItem('hasCompletedOnboarding', 'true');
             setHasCompletedOnboarding(true);
           }} />} />
-        ) : !isAuthenticated ? (
-          <Route path="*" element={<Login onLogin={(userId) => {
-            localStorage.setItem('isAuthenticated', 'true');
-            localStorage.setItem('userId', String(userId));
-            setIsAuthenticated(true);
-          }} />} />
+        ) : !isAuth ? (
+          <Route path="*" element={<Login onLogin={handleLogin} />} />
         ) : (
           <Route element={<Layout />}>
             <Route path="/" element={<Navigate to="/home" replace />} />
@@ -60,11 +71,10 @@ export default function App() {
             <Route path="/palm-reading" element={<PalmReading />} />
             <Route path="/puja" element={<Puja />} />
             <Route path="/puja/:id" element={<PujaDetail />} />
-            <Route path="/profile" element={<Profile onLogout={() => {
-              localStorage.removeItem('isAuthenticated');
-              localStorage.removeItem('userId');
-              setIsAuthenticated(false);
-            }} />} />
+            <Route path="/wishes" element={<WishList />} />
+            <Route path="/wish/:id" element={<WishDetail />} />
+            <Route path="/record-wish" element={<RecordWish />} />
+            <Route path="/profile" element={<Profile onLogout={handleLogout} />} />
             <Route path="/subscription" element={<Subscription />} />
             <Route path="*" element={<Navigate to="/home" replace />} />
           </Route>
