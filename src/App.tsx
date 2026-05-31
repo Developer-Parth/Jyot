@@ -29,17 +29,36 @@ export default function App() {
   const [isAuth, setIsAuth] = useState<boolean | null>(null);
   const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean | null>(null);
 
-  useEffect(() => {
+  const recheckAuth = () => {
     const onboarding = localStorage.getItem('hasCompletedOnboarding') === 'true';
     setHasCompletedOnboarding(onboarding);
     setIsAuth(onboarding ? checkAuth() : false);
+  };
+
+  useEffect(() => {
+    recheckAuth();
 
     const handleForceLogout = () => {
       clearToken();
       setIsAuth(false);
     };
     window.addEventListener('auth:logout', handleForceLogout);
-    return () => window.removeEventListener('auth:logout', handleForceLogout);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        const authed = checkAuth();
+        setIsAuth(prev => {
+          if (prev === true && !authed) return false;
+          return prev;
+        });
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      window.removeEventListener('auth:logout', handleForceLogout);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
   }, []);
 
   if (isAuth === null || hasCompletedOnboarding === null) {

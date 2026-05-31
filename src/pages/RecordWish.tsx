@@ -62,20 +62,56 @@ export default function RecordWish() {
   const [cameraActive, setCameraActive] = useState(false);
   const [error, setError] = useState('');
   const [permissionDenied, setPermissionDenied] = useState(false);
+  const [showRestartModal, setShowRestartModal] = useState(false);
+  const [restartCountdown, setRestartCountdown] = useState(10);
+  const [deniedRestart, setDeniedRestart] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<number>(0);
+  const restartTimerRef = useRef<number>(0);
 
   useEffect(() => {
     return () => {
       if (stream) stream.getTracks().forEach(t => t.stop());
       if (recordedUrl) URL.revokeObjectURL(recordedUrl);
       clearInterval(timerRef.current);
+      clearInterval(restartTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (!showRestartModal || deniedRestart) return;
+    restartTimerRef.current = window.setInterval(() => {
+      setRestartCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(restartTimerRef.current);
+          window.location.reload();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(restartTimerRef.current);
+  }, [showRestartModal, deniedRestart]);
+
+  const triggerRestartModal = () => {
+    setShowRestartModal(true);
+    setRestartCountdown(10);
+    setDeniedRestart(false);
+  };
+
+  const handleAllowRestart = () => {
+    clearInterval(restartTimerRef.current);
+    window.location.reload();
+  };
+
+  const handleDenyRestart = () => {
+    clearInterval(restartTimerRef.current);
+    setDeniedRestart(true);
+  };
 
   const startCamera = async () => {
     setError('');
@@ -100,7 +136,7 @@ export default function RecordWish() {
       } else if (name === 'NotFoundError') {
         setError('No camera or microphone found on this device.');
       } else {
-        setError('Could not access camera. Please check your device permissions.');
+        triggerRestartModal();
       }
     }
   };
@@ -126,7 +162,7 @@ export default function RecordWish() {
     try {
       recorder = new MediaRecorder(stream, { mimeType });
     } catch {
-      setError('Recording is not supported on this device.');
+      triggerRestartModal();
       return;
     }
 
@@ -137,7 +173,7 @@ export default function RecordWish() {
     };
 
     recorder.onerror = () => {
-      setError('Recording failed. Please try again.');
+      triggerRestartModal();
       clearInterval(timerRef.current);
       setRecording(false);
     };
@@ -152,7 +188,7 @@ export default function RecordWish() {
     try {
       recorder.start(100);
     } catch {
-      setError('Could not start recording. Please try again.');
+      triggerRestartModal();
       return;
     }
 
@@ -302,6 +338,45 @@ export default function RecordWish() {
           <Save className="w-5 h-5" /> {saving ? 'Saving...' : 'Save Wish'}
         </button>
       </div>
+
+      {showRestartModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#2b1d16] rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-amber-500/20">
+            {deniedRestart ? (
+              <div className="text-center">
+                <div className="w-14 h-14 rounded-full bg-amber-100/10 flex items-center justify-center mx-auto mb-4">
+                  <ArrowLeft className="w-6 h-6 text-amber-400" />
+                </div>
+                <h3 className="text-lg font-serif text-amber-50 mb-2">Force-restart Jyot</h3>
+                <div className="bg-amber-900/20 rounded-xl p-4 text-left text-sm text-amber-100/80 space-y-2 mb-6">
+                  <p>1. Close the app — swipe it away from recent apps</p>
+                  <p>2. Tap the Jyot icon on your home screen to reopen</p>
+                  <p>3. Log in and try recording your wish again</p>
+                </div>
+                <button onClick={() => setShowRestartModal(false)} className="w-full py-3 rounded-xl bg-amber-600 text-white font-medium text-sm hover:bg-amber-700 transition-colors">
+                  I understand
+                </button>
+              </div>
+            ) : (
+              <div className="text-center">
+                <div className="w-14 h-14 rounded-full bg-red-900/30 flex items-center justify-center mx-auto mb-4">
+                  <Camera className="w-6 h-6 text-red-400" />
+                </div>
+                <h3 className="text-lg font-serif text-amber-50 mb-2">Something went wrong from our side</h3>
+                <p className="text-sm text-amber-100/60 mb-6">Force-restarting the app...</p>
+                <div className="flex gap-3">
+                  <button onClick={handleDenyRestart} className="flex-1 py-3 rounded-xl border border-amber-200/20 text-amber-100/70 text-sm font-medium hover:bg-amber-100/5 transition-colors">
+                    Deny
+                  </button>
+                  <button onClick={handleAllowRestart} className="flex-1 py-3 rounded-xl bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 transition-colors">
+                    Allow ({restartCountdown}s)
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
