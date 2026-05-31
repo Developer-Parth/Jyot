@@ -162,7 +162,7 @@ export default function RecordWish() {
     try {
       recorder = new MediaRecorder(stream, { mimeType });
     } catch {
-      triggerRestartModal();
+      setError('Video recording is not supported on this device.');
       return;
     }
 
@@ -173,7 +173,7 @@ export default function RecordWish() {
     };
 
     recorder.onerror = () => {
-      triggerRestartModal();
+      setError('Recording was interrupted. Please try again.');
       clearInterval(timerRef.current);
       setRecording(false);
     };
@@ -188,7 +188,7 @@ export default function RecordWish() {
     try {
       recorder.start(100);
     } catch {
-      triggerRestartModal();
+      setError('Could not start recording. Please try stopping and starting the camera again.');
       return;
     }
 
