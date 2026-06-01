@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowRight, Check, MapPin, Bell, Heart, Calendar, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { APP_AUTHOR, APP_AUTHOR_URL } from '../lib/branding';
 
 function getAge(birthDate: string): number {
   if (!birthDate) return 0;
@@ -246,6 +247,11 @@ export default function Onboarding({ onComplete }: { onComplete: () => void }) {
         <p className="text-xs text-stone-400 text-center mt-4">
           By continuing, you agree to our{' '}
           <Link to="/privacy-policy" className="text-amber-700 underline hover:text-amber-900">Privacy Policy</Link>.
+        </p>
+
+        <p className="text-xs text-stone-400 text-center mt-3">
+          Made by{' '}
+          <a href={APP_AUTHOR_URL} target="_blank" rel="noreferrer" className="text-amber-700 underline hover:text-amber-900">{APP_AUTHOR}</a>
         </p>
       </div>
     </div>

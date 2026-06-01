@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, CircleDashed, Sparkles, BookOpen, Heart, Calendar, MessageCircle, X } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
-import { APP_NAME } from '../lib/branding';
+import { APP_NAME, APP_AUTHOR, APP_AUTHOR_URL } from '../lib/branding';
 
 const faqs = [
   {
@@ -196,6 +196,11 @@ export default function Help() {
         <Link to="/terms" className="text-stone-400 hover:text-amber-700 underline underline-offset-2">Terms</Link>
         <Link to="/privacy-policy" className="text-stone-400 hover:text-amber-700 underline underline-offset-2">Privacy Policy</Link>
       </div>
+
+      <p className="pb-6 text-center text-xs text-stone-400">
+        Made by{' '}
+        <a href={APP_AUTHOR_URL} target="_blank" rel="noreferrer" className="text-amber-700 underline hover:text-amber-900">{APP_AUTHOR}</a>
+      </p>
     </div>
   );
 }

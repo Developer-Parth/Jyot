@@ -1,6 +1,7 @@
 import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { Home, CircleDashed, Sparkles, BookOpen, User, Heart } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { APP_AUTHOR, APP_AUTHOR_URL } from '../lib/branding';
 
 const HIDE_NAV_PATHS: string[] = [];
 
@@ -21,6 +22,10 @@ export default function Layout() {
     <div className="flex flex-col h-[100dvh] bg-transparent max-w-md mx-auto relative shadow-2xl overflow-hidden border-x border-amber-900/10">
       <main className={`flex-1 overflow-y-auto ${hideNav ? '' : 'pb-20'}`}>
         <Outlet />
+        <p className="text-center text-xs text-stone-500 py-4">
+          Made by{' '}
+          <a href={APP_AUTHOR_URL} target="_blank" rel="noreferrer" className="text-amber-700 underline hover:text-amber-900">{APP_AUTHOR}</a>
+        </p>
       </main>
       
       {!hideNav && (

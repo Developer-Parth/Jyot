@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import { APP_AUTHOR, APP_AUTHOR_URL } from '../lib/branding';
 
 export default function TermsAndConditions() {
   return (
@@ -132,6 +133,11 @@ export default function TermsAndConditions() {
             Return to Jyot
           </Link>
         </div>
+
+        <p className="text-xs text-stone-400 text-center mt-6 pt-4 border-t border-amber-100">
+          Made by{' '}
+          <a href={APP_AUTHOR_URL} target="_blank" rel="noreferrer" className="text-amber-700 underline hover:text-amber-900">{APP_AUTHOR}</a>
+        </p>
       </div>
     </div>
   );

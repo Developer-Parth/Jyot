@@ -4,7 +4,7 @@ import { ArrowRight, Calendar, Eye, EyeOff, MapPin, Phone, UserRound, KeyRound, 
 import { Link } from 'react-router-dom';
 import { api } from '../services/api';
 import { setToken } from '../services/auth';
-import { APP_NAME } from '../lib/branding';
+import { APP_NAME, APP_AUTHOR, APP_AUTHOR_URL } from '../lib/branding';
 
 function getAge(birthDate: string): number {
   if (!birthDate) return 0;
@@ -246,6 +246,11 @@ export default function Login({ onLogin }: { onLogin: (userId: number) => void }
           <Link to="/terms" className="text-amber-700 underline hover:text-amber-900">Terms &amp; Conditions</Link>{' '}
           and{' '}
           <Link to="/privacy-policy" className="text-amber-700 underline hover:text-amber-900">Privacy Policy</Link>.
+        </p>
+
+        <p className="text-xs text-stone-400 text-center mt-3">
+          Made by{' '}
+          <a href={APP_AUTHOR_URL} target="_blank" rel="noreferrer" className="text-amber-700 underline hover:text-amber-900">{APP_AUTHOR}</a>
         </p>
       </div>
     </div>
