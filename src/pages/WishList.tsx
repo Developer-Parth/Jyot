@@ -4,7 +4,7 @@ import { motion } from 'motion/react';
 import { Heart, Play, Trash2, Plus, Clock } from 'lucide-react';
 import { api } from '../services/api';
 import { getUserId } from '../services/auth';
-import { getWishVideo } from '../lib/wishVideoStore';
+import { getWishVideoLocal } from '../lib/wishVideoStore';
 
 type Wish = {
   id: number;
@@ -29,8 +29,7 @@ export default function WishList() {
       setWishes(list);
       const status: Record<number, boolean> = {};
       for (const w of list) {
-        const blob = await getWishVideo(w.id);
-        status[w.id] = !!blob;
+        status[w.id] = !!(w.video_id || await getWishVideoLocal(w.id));
       }
       setVideoStatus(status);
     }).catch(() => {}).finally(() => setLoading(false));

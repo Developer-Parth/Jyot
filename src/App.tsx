@@ -16,6 +16,7 @@ import Onboarding from './pages/Onboarding';
 import Login from './pages/Login';
 import Subscription from './pages/Subscription';
 import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsAndConditions from './pages/TermsAndConditions';
 import WishList from './pages/WishList';
 import WishDetail from './pages/WishDetail';
 import RecordWish from './pages/RecordWish';
@@ -81,6 +82,7 @@ export default function App() {
       <BrowserRouter>
       <Routes>
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/terms" element={<TermsAndConditions />} />
         <Route path="/admin" element={<AdminDashboard />} />
         {!hasCompletedOnboarding ? (
           <Route path="*" element={<Onboarding onComplete={() => {

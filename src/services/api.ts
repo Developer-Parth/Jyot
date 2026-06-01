@@ -5,6 +5,7 @@ const isCapacitor = typeof (window as any).Capacitor !== 'undefined';
 const API_BASE = isCapacitor ? 'https://myjyot.xyz' : '';
 
 const TIMEOUT_MS = 55000;
+const UPLOAD_TIMEOUT_MS = 120000;
 
 async function request<T>(method: string, endpoint: string, body?: any): Promise<T> {
   const url = `${API_BASE}/api${endpoint}`;
@@ -44,10 +45,10 @@ async function request<T>(method: string, endpoint: string, body?: any): Promise
         errorData = { error: text || `HTTP error ${response.status}` };
       }
 
-      if (response.status === 401) {
-        clearToken();
-        window.dispatchEvent(new CustomEvent('auth:logout'));
-      }
+        if (response.status === 401) {
+          clearToken();
+          window.dispatchEvent(new CustomEvent('auth:logout'));
+        }
 
       throw new Error(errorData.error || `HTTP error ${response.status}`);
     }
@@ -79,5 +80,53 @@ export const api = {
 
   async del<T = any>(endpoint: string): Promise<T> {
     return request<T>('DELETE', endpoint);
+  },
+
+  async upload<T>(endpoint: string, blob: Blob, filename?: string): Promise<T> {
+    const url = `${API_BASE}/api${endpoint}`;
+    console.log(`[API] UPLOAD ${url}`);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+
+    const headers: Record<string, string> = {};
+    const token = getToken();
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const formData = new FormData();
+    formData.append('video', blob, filename || 'recording.webm');
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        signal: controller.signal,
+        body: formData,
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        let errorData: any = {};
+        try {
+          errorData = await response.json();
+        } catch {
+          const text = await response.text().catch(() => '');
+          errorData = { error: text || `HTTP error ${response.status}` };
+        }
+        if (response.status === 401) {
+          clearToken();
+          window.dispatchEvent(new CustomEvent('auth:logout'));
+        }
+        throw new Error(errorData.error || `HTTP error ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        throw new Error('Upload timed out. The video may be too large.');
+      }
+      throw err;
+    }
   }
 };

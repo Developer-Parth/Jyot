@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronDown, CircleDashed, Sparkles, BookOpen, Heart, Calendar, MessageCircle, X } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { APP_NAME } from '../lib/branding';
 
 const faqs = [
@@ -190,6 +190,11 @@ export default function Help() {
         {lang === 'en'
           ? `${APP_NAME} is a spiritual companion — all readings are for reflection and entertainment.`
           : `${APP_NAME} एक आध्यात्मिक साथी है — सभी रीडिंग चिंतन और मनोरंजन के लिए हैं।`}
+      </div>
+
+      <div className="px-4 pb-6 flex justify-center gap-4 text-xs">
+        <Link to="/terms" className="text-stone-400 hover:text-amber-700 underline underline-offset-2">Terms</Link>
+        <Link to="/privacy-policy" className="text-stone-400 hover:text-amber-700 underline underline-offset-2">Privacy Policy</Link>
       </div>
     </div>
   );

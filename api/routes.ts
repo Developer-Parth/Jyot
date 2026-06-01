@@ -2,11 +2,13 @@ console.log('[BOOT] api/routes.ts loaded');
 
 import { Router, Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
+import multer from 'multer';
 import { PalmReadingController } from './controllers/PalmReadingController.js';
 import store from './storage.js';
 import { PanchangService } from './services/PanchangService.js';
 import { palmReadingLimiter, authLimiter } from './middleware/rateLimiter.js';
 import { requireAuth, requireAdmin, generateToken, generateAdminToken } from './middleware/auth.js';
+import { supabaseAdmin, BUCKET_NAME, isStorageConfigured, ensureBucket } from './supabase-admin.js';
 import {
   validateLogin,
   validateRegistration,
@@ -358,7 +360,118 @@ router.delete('/wishes/:wishId', requireAuth, asyncHandler(async (req, res) => {
   }
 
   await store.delete('wishes', wishId);
+
+  // Also delete video from Supabase Storage if it exists
+  if (wish.video_id && isStorageConfigured()) {
+    try {
+      await supabaseAdmin!.storage.from(BUCKET_NAME).remove([wish.video_id]);
+    } catch (e: any) {
+      console.warn(`[STORAGE] Failed to remove video for wish ${wishId}: ${e?.message}`);
+    }
+  }
+
   res.json({ success: true });
+}));
+
+// ── Wish Video Upload ────────────────────────────────────────
+const videoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['video/webm', 'video/mp4', 'video/quicktime', 'video/x-matroska'];
+    if (allowed.includes(file.mimetype) || file.originalname.endsWith('.webm') || file.originalname.endsWith('.mp4')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Unsupported video format. Allowed: webm, mp4, mov, mkv'));
+    }
+  },
+});
+
+router.post('/wishes/:wishId/video', requireAuth, asyncHandler(async (req, res) => {
+  const userId = req.user!.userId;
+  const wishId = Number(req.params.wishId);
+
+  const wish = await store.getById<any>('wishes', wishId);
+  if (!wish || wish.user_id !== userId) {
+    res.status(404).json({ error: 'Wish not found.' });
+    return;
+  }
+
+  if (!isStorageConfigured()) {
+    res.status(501).json({ error: 'Video storage is not configured. Set SUPABASE_SERVICE_ROLE_KEY.' });
+    return;
+  }
+
+  await ensureBucket();
+
+  videoUpload.single('video')(req, res, async (err) => {
+    if (err) {
+      res.status(400).json({ error: err instanceof multer.MulterError ? err.message : err.message });
+      return;
+    }
+
+    if (!req.file) {
+      res.status(400).json({ error: 'No video file provided.' });
+      return;
+    }
+
+    const ext = req.file.originalname.split('.').pop() || 'webm';
+    const storagePath = `wishes/${wishId}/${Date.now()}.${ext}`;
+
+    const { error: uploadError } = await supabaseAdmin!.storage
+      .from(BUCKET_NAME)
+      .upload(storagePath, req.file.buffer, {
+        contentType: req.file.mimetype,
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error('[STORAGE] Upload failed:', uploadError);
+      res.status(500).json({ error: 'Failed to upload video.' });
+      return;
+    }
+
+    // If there was a previous video, remove it
+    if (wish.video_id) {
+      supabaseAdmin!.storage.from(BUCKET_NAME).remove([wish.video_id]).catch(() => {});
+    }
+
+    await store.update('wishes', wishId, { video_id: storagePath });
+
+    res.json({ video_id: storagePath });
+  });
+}));
+
+router.get('/wishes/:wishId/video', requireAuth, asyncHandler(async (req, res) => {
+  const userId = req.user!.userId;
+  const wishId = Number(req.params.wishId);
+
+  const wish = await store.getById<any>('wishes', wishId);
+  if (!wish || wish.user_id !== userId) {
+    res.status(404).json({ error: 'Wish not found.' });
+    return;
+  }
+
+  if (!wish.video_id) {
+    res.status(404).json({ error: 'No video for this wish.' });
+    return;
+  }
+
+  if (!isStorageConfigured()) {
+    res.status(501).json({ error: 'Video storage is not configured.' });
+    return;
+  }
+
+  const { data } = await supabaseAdmin!.storage
+    .from(BUCKET_NAME)
+    .createSignedUrl(wish.video_id, 86400);
+
+  if (!data) {
+    res.status(404).json({ error: 'Video file not found in storage.' });
+    return;
+  }
+
+  res.json({ url: data.signedUrl });
 }));
 
 // ── Public: Panchang ─────────────────────────────────────────

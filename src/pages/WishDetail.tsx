@@ -3,12 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Trash2, Clock } from 'lucide-react';
 import { api } from '../services/api';
 import { getUserId } from '../services/auth';
-import { getWishVideo, deleteWishVideo } from '../lib/wishVideoStore';
+import { getWishVideoUrl, deleteWishVideo, deleteWishVideoLocal } from '../lib/wishVideoStore';
 
 type Wish = {
   id: number;
   title: string;
   description: string;
+  video_id: string;
   created_at: string;
 };
 
@@ -30,9 +31,8 @@ export default function WishDetail() {
       if (!found) { navigate('/wishes'); return; }
       setWish(found);
 
-      const blob = await getWishVideo(found.id);
-      if (blob) {
-        const url = URL.createObjectURL(blob);
+      const url = await getWishVideoUrl(found.id, !!found.video_id);
+      if (url) {
         objectUrlRef.current = url;
         setVideoUrl(url);
       }
@@ -52,7 +52,7 @@ export default function WishDetail() {
     if (!userId || !wish) return;
     try {
       await api.del(`/wishes/${wish.id}`);
-      await deleteWishVideo(wish.id);
+      await deleteWishVideoLocal(wish.id);
       navigate('/wishes');
     } catch {}
   };

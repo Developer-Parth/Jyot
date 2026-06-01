@@ -1,3 +1,5 @@
+import { api } from '../services/api';
+
 const DB_NAME = 'JyotWishVideos';
 const DB_VERSION = 1;
 const STORE_NAME = 'videos';
@@ -16,7 +18,7 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
-export async function saveWishVideo(wishId: number, blob: Blob): Promise<void> {
+export async function saveWishVideoLocally(wishId: number, blob: Blob): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -26,7 +28,7 @@ export async function saveWishVideo(wishId: number, blob: Blob): Promise<void> {
   });
 }
 
-export async function getWishVideo(wishId: number): Promise<Blob | null> {
+export async function getWishVideoLocal(wishId: number): Promise<Blob | null> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readonly');
@@ -39,7 +41,7 @@ export async function getWishVideo(wishId: number): Promise<Blob | null> {
   });
 }
 
-export async function deleteWishVideo(wishId: number): Promise<void> {
+export async function deleteWishVideoLocal(wishId: number): Promise<void> {
   const db = await openDB();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
@@ -47,4 +49,37 @@ export async function deleteWishVideo(wishId: number): Promise<void> {
     tx.oncomplete = () => { db.close(); resolve(); };
     tx.onerror = () => { db.close(); reject(tx.error); };
   });
+}
+
+export async function uploadWishVideo(wishId: number, blob: Blob): Promise<string | null> {
+  try {
+    const result = await api.upload<{ video_id: string }>(`/wishes/${wishId}/video`, blob);
+    return result.video_id;
+  } catch (err) {
+    console.warn('[WishVideo] Server upload failed:', err);
+    return null;
+  }
+}
+
+export async function getWishVideoUrl(wishId: number, hasServerVideo: boolean): Promise<string | null> {
+  if (hasServerVideo) {
+    try {
+      const result = await api.get<{ url: string }>(`/wishes/${wishId}/video`);
+      return result.url;
+    } catch {
+      // fall through to local
+    }
+  }
+  const blob = await getWishVideoLocal(wishId);
+  if (blob) return URL.createObjectURL(blob);
+  return null;
+}
+
+export async function saveWishVideo(wishId: number, blob: Blob): Promise<void> {
+  await saveWishVideoLocally(wishId, blob);
+  uploadWishVideo(wishId, blob).catch(() => {});
+}
+
+export async function deleteWishVideo(wishId: number): Promise<void> {
+  await deleteWishVideoLocal(wishId);
 }

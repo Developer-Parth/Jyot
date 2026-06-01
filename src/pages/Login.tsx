@@ -243,6 +243,8 @@ export default function Login({ onLogin }: { onLogin: (userId: number) => void }
 
         <p className="text-xs text-stone-400 text-center mt-4">
           By continuing, you agree to our{' '}
+          <Link to="/terms" className="text-amber-700 underline hover:text-amber-900">Terms &amp; Conditions</Link>{' '}
+          and{' '}
           <Link to="/privacy-policy" className="text-amber-700 underline hover:text-amber-900">Privacy Policy</Link>.
         </p>
       </div>
