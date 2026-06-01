@@ -31,7 +31,7 @@ const asyncHandler = (fn: (req: Request, res: Response, next: NextFunction) => P
 const todayKey = () => new Date().toISOString().slice(0, 10);
 
 const touchStreak = async (userId: number) => {
-  const user = store.getById<any>('users', userId);
+  const user = await store.getById<any>('users', userId);
   if (!user) return;
 
   const today = todayKey();
@@ -50,8 +50,8 @@ const touchStreak = async (userId: number) => {
   });
 };
 
-const getCurrentSubscription = (userId: number) => {
-  const subs = store.where<any>('subscriptions', s => s.user_id === userId);
+const getCurrentSubscription = async (userId: number) => {
+  const subs = await store.where<any>('subscriptions', s => s.user_id === userId);
   subs.sort((a: any, b: any) => (b.id || 0) - (a.id || 0));
   return subs[0] || null;
 };
@@ -67,7 +67,7 @@ router.post('/auth/login', authLimiter, validateLogin, asyncHandler(async (req, 
   const { phone, password } = req.body;
 
   const email = `${String(phone).replace(/\D/g, '')}@jyot.local`;
-  const user = store.findOne<any>('users', u => u.phone === phone || u.email === email);
+  const user = await store.findOne<any>('users', u => u.phone === phone || u.email === email);
 
   if (!user) {
     res.status(404).json({ error: 'No account found with this number. Please register first.', code: 'ACCOUNT_NOT_FOUND' });
@@ -91,12 +91,13 @@ router.post('/auth/login', authLimiter, validateLogin, asyncHandler(async (req, 
 
   await touchStreak(user.id);
   const token = generateToken(user.id);
-  const freshUser = store.getById('users', user.id);
+  const freshUser = await store.getById('users', user.id);
+  const subscription = await getCurrentSubscription(user.id);
 
   res.json({
     token,
     user: stripUser(freshUser),
-    subscription: getCurrentSubscription(user.id) || { plan: 'seeker', status: 'active' },
+    subscription: subscription || { plan: 'seeker', status: 'active' },
   });
 }));
 
@@ -117,7 +118,7 @@ router.post('/auth/register', authLimiter, validateRegistration, asyncHandler(as
   }
 
   const email = `${String(phone).replace(/\D/g, '')}@jyot.local`;
-  const existing = store.findOne<any>('users', u => u.phone === phone || u.email === email);
+  const existing = await store.findOne<any>('users', u => u.phone === phone || u.email === email);
   if (existing) {
     res.status(409).json({ error: 'An account with this number already exists. Please log in.', code: 'ACCOUNT_EXISTS' });
     return;
@@ -135,12 +136,13 @@ router.post('/auth/register', authLimiter, validateRegistration, asyncHandler(as
 
   await touchStreak(newUser.id);
   const token = generateToken(newUser.id);
-  const freshUser = store.getById('users', newUser.id);
+  const freshUser = await store.getById('users', newUser.id);
+  const subscription = await getCurrentSubscription(newUser.id);
 
   res.json({
     token,
     user: stripUser(freshUser),
-    subscription: getCurrentSubscription(newUser.id) || { plan: 'seeker', status: 'active' },
+    subscription: subscription || { plan: 'seeker', status: 'active' },
   });
 }));
 
@@ -169,7 +171,7 @@ router.post('/auth/setup-password', authLimiter, asyncHandler(async (req, res) =
 
   const cleanPhone = phone.replace(/\D/g, '').slice(0, 10);
   const email = `${cleanPhone}@jyot.local`;
-  const user = store.findOne<any>('users', u => u.phone === cleanPhone || u.email === email);
+  const user = await store.findOne<any>('users', u => u.phone === cleanPhone || u.email === email);
 
   if (!user) {
     res.status(404).json({ error: 'Account not found.', code: 'ACCOUNT_NOT_FOUND' });
@@ -192,12 +194,13 @@ router.post('/auth/setup-password', authLimiter, asyncHandler(async (req, res) =
   console.log(`[MIGRATION] User ${user.id} password set via legacy setup flow.`);
 
   const token = generateToken(user.id);
-  const freshUser = store.getById('users', user.id);
+  const freshUser = await store.getById('users', user.id);
+  const subscription = await getCurrentSubscription(user.id);
 
   res.json({
     token,
     user: stripUser(freshUser),
-    subscription: getCurrentSubscription(user.id) || { plan: 'seeker', status: 'active' },
+    subscription: subscription || { plan: 'seeker', status: 'active' },
   });
 }));
 
@@ -222,21 +225,22 @@ router.put('/users/me', requireAuth, validateUserUpdate, asyncHandler(async (req
 router.get('/users/me', requireAuth, asyncHandler(async (req, res) => {
   const userId = req.user!.userId;
   await touchStreak(userId);
-  const user = store.getById<any>('users', userId);
+  const user = await store.getById<any>('users', userId);
   if (!user) {
     res.status(404).json({ error: 'User not found.' });
     return;
   }
 
-  const jaaps = store.where<any>('jaaps', j => j.user_id === userId);
+  const jaaps = await store.where<any>('jaaps', j => j.user_id === userId);
   jaaps.sort((a: any, b: any) => (b.updated_at || '').localeCompare(a.updated_at || ''));
   const totalJaap = jaaps.reduce((sum, item) =>
     sum + Number(item.count || 0) + (Number(item.completed_sessions || 0) * Number(item.goal || 108)), 0);
   const mostChanted = jaaps[0]?.mantra || 'Begin your first jaap';
+  const subscription = await getCurrentSubscription(userId);
 
   res.json({
     user: stripUser(user),
-    subscription: getCurrentSubscription(userId) || { plan: 'seeker', status: 'active' },
+    subscription: subscription || { plan: 'seeker', status: 'active' },
     analytics: {
       totalJaap,
       currentStreak: Number(user.current_streak || 0),
@@ -248,7 +252,7 @@ router.get('/users/me', requireAuth, asyncHandler(async (req, res) => {
 
 router.delete('/users/me', requireAuth, asyncHandler(async (req, res) => {
   const userId = req.user!.userId;
-  const user = store.getById('users', userId);
+  const user = await store.getById('users', userId);
   if (!user) {
     res.status(404).json({ error: 'User not found.' });
     return;
@@ -268,22 +272,22 @@ router.delete('/users/me', requireAuth, asyncHandler(async (req, res) => {
 router.post('/palm-reading', requireAuth, palmReadingLimiter, validatePalmReading, PalmReadingController.readPalm);
 
 // ── Protected: Jaap ──────────────────────────────────────────
-router.get('/jaap', requireAuth, (req, res) => {
+router.get('/jaap', requireAuth, asyncHandler(async (req, res) => {
   const userId = req.user!.userId;
 
-  const all = store.where<any>('jaaps', j => j.user_id === userId);
+  const all = await store.where<any>('jaaps', j => j.user_id === userId);
   all.sort((a: any, b: any) => (b.updated_at || '').localeCompare(a.updated_at || ''));
   const jaap = all[0] || null;
 
   res.json(jaap || { mantra: 'Om Namah Shivaya', count: 0, goal: 108, completed_sessions: 0 });
-});
+}));
 
 router.put('/jaap', requireAuth, validateJaapSave, asyncHandler(async (req, res) => {
   const userId = req.user!.userId;
   const { mantra, count, goal, completed } = req.body;
   await touchStreak(userId);
 
-  const existing = store.findOne<any>('jaaps', j => j.user_id === userId && j.mantra === mantra);
+  const existing = await store.findOne<any>('jaaps', j => j.user_id === userId && j.mantra === mantra);
   if (existing) {
     await store.update('jaaps', existing.id, {
       count: Number(count || 0),
@@ -302,14 +306,14 @@ router.put('/jaap', requireAuth, validateJaapSave, asyncHandler(async (req, res)
     });
   }
 
-  const jaap = store.findOne<any>('jaaps', j => j.user_id === userId && j.mantra === mantra);
+  const jaap = await store.findOne<any>('jaaps', j => j.user_id === userId && j.mantra === mantra);
   res.json(jaap);
 }));
 
 // ── Protected: Wishes (userId from JWT, never from params) ───
 router.get('/wishes', requireAuth, asyncHandler(async (req, res) => {
   const userId = req.user!.userId;
-  const wishes = store.where<any>('wishes', w => w.user_id === userId);
+  const wishes = await store.where<any>('wishes', w => w.user_id === userId);
   wishes.sort((a: any, b: any) => (b.created_at || '').localeCompare(a.created_at || ''));
   res.json(wishes);
 }));
@@ -333,7 +337,7 @@ router.put('/wishes/:wishId', requireAuth, validateWishCreate, asyncHandler(asyn
   const wishId = Number(req.params.wishId);
   const { title, description } = req.body;
 
-  const wish = store.getById<any>('wishes', wishId);
+  const wish = await store.getById<any>('wishes', wishId);
   if (!wish || wish.user_id !== userId) {
     res.status(404).json({ error: 'Wish not found.' });
     return;
@@ -347,7 +351,7 @@ router.delete('/wishes/:wishId', requireAuth, asyncHandler(async (req, res) => {
   const userId = req.user!.userId;
   const wishId = Number(req.params.wishId);
 
-  const wish = store.getById<any>('wishes', wishId);
+  const wish = await store.getById<any>('wishes', wishId);
   if (!wish || wish.user_id !== userId) {
     res.status(404).json({ error: 'Wish not found.' });
     return;
@@ -415,9 +419,9 @@ router.post('/admin/login', authLimiter, validateAdminLogin, asyncHandler(async 
   }
 
   const token = generateAdminToken();
-  const allUsers = store.all<any>('users');
-  const totalWishes = store.all('wishes').length;
-  const totalReadings = store.all('palm_readings').length;
+  const allUsers = await store.all<any>('users');
+  const totalWishes = (await store.all('wishes')).length;
+  const totalReadings = (await store.all('palm_readings')).length;
 
   const usersWithData = allUsers.map((u: any) => ({
     id: u.id,
@@ -445,16 +449,17 @@ router.post('/admin/login', authLimiter, validateAdminLogin, asyncHandler(async 
 }));
 
 router.get('/admin/export/json', requireAdmin, asyncHandler(async (req, res) => {
+  const users = (await store.all<any>('users')).map((u: any) => {
+    const { password_hash, ...rest } = u;
+    return rest;
+  });
   const data = {
     exportedAt: new Date().toISOString(),
-    users: store.all<any>('users').map((u: any) => {
-      const { password_hash, ...rest } = u;
-      return rest;
-    }),
-    wishes: store.all('wishes'),
-    jaaps: store.all('jaaps'),
-    palmReadings: store.all('palm_readings'),
-    subscriptions: store.all('subscriptions'),
+    users,
+    wishes: await store.all('wishes'),
+    jaaps: await store.all('jaaps'),
+    palmReadings: await store.all('palm_readings'),
+    subscriptions: await store.all('subscriptions'),
   };
 
   res.setHeader('Content-Type', 'application/json');
@@ -463,7 +468,7 @@ router.get('/admin/export/json', requireAdmin, asyncHandler(async (req, res) => 
 }));
 
 router.get('/admin/export/csv', requireAdmin, asyncHandler(async (req, res) => {
-  const users = store.all<any>('users');
+  const users = await store.all<any>('users');
   const headers = ['id', 'name', 'phone', 'city', 'deity', 'gotra', 'birth_date', 'created_at'];
   let csv = headers.join(',') + '\n';
 
