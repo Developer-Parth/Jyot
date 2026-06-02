@@ -27,7 +27,33 @@
 
 ### Screenshots
 
-> Add screenshots here — homepage, palm reading, jaap mala, panchang, and Android APK screenshots make a huge difference for open-source projects.
+<p align="center">
+  <img src="1.jpeg" width="160" alt="Onboarding - Step 1" />
+  <img src="2.jpeg" width="160" alt="Onboarding - Step 2" />
+  <img src="3.jpeg" width="160" alt="Onboarding - Step 3" />
+  <img src="4.jpeg" width="160" alt="Onboarding - Step 4" />
+</p>
+
+<p align="center">
+  <img src="5.jpeg" width="160" alt="Login Screen" />
+  <img src="6.jpeg" width="160" alt="Home Screen" />
+  <img src="7.jpeg" width="160" alt="Jaap Mala Counter" />
+  <img src="8.jpeg" width="160" alt="Jaap Session" />
+</p>
+
+<p align="center">
+  <img src="9.jpeg" width="160" alt="Palm Reading" />
+  <img src="10.jpeg" width="160" alt="Palm Reading Result" />
+  <img src="11.jpeg" width="160" alt="Puja Library" />
+  <img src="12.jpeg" width="160" alt="Puja Details" />
+</p>
+
+<p align="center">
+  <img src="13.jpeg" width="160" alt="Puja Samagri Checklist" />
+  <img src="14.jpeg" width="160" alt="Wish Recording" />
+  <img src="15.jpeg" width="160" alt="Wish List" />
+  <img src="16.jpeg" width="160" alt="Help & Profile" />
+</p>
 
 ### Panchang (Vedic Almanac)
 Daily panchang computed entirely offline using the `mhah-panchang` library — no paid API required. Calculates:
