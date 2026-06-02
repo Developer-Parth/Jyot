@@ -85,7 +85,6 @@ export default function AdminDashboard() {
       const data = await res.json();
       setToken(data.token);
       setStats(data.stats);
-      setUsers(data.users);
     } catch (err: any) {
       setError(err.message);
     } finally {
