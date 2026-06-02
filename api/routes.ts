@@ -91,6 +91,32 @@ router.post('/auth/login', authLimiter, validateLogin, asyncHandler(async (req, 
     return;
   }
 
+  if (user.is_banned) {
+    const reason = user.ban_reason ? ` Reason: ${user.ban_reason}` : '';
+    res.status(403).json({ error: `Your account has been permanently banned.${reason}`, code: 'BANNED' });
+    return;
+  }
+
+  if (user.is_suspended) {
+    if (user.suspended_until) {
+      const until = new Date(user.suspended_until);
+      if (until > new Date()) {
+        const reason = user.suspension_reason ? ` Reason: ${user.suspension_reason}` : '';
+        res.status(403).json({
+          error: `Your account is suspended until ${until.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}.${reason}`,
+          code: 'SUSPENDED',
+          suspendedUntil: user.suspended_until,
+        });
+        return;
+      }
+      await store.update('users', user.id, { is_suspended: false, suspended_until: null });
+    } else {
+      const reason = user.suspension_reason ? ` Reason: ${user.suspension_reason}` : '';
+      res.status(403).json({ error: `Your account is suspended.${reason}`, code: 'SUSPENDED' });
+      return;
+    }
+  }
+
   await touchStreak(user.id);
   const token = generateToken(user.id);
   const freshUser = await store.getById('users', user.id);
@@ -444,10 +470,11 @@ router.post('/wishes/:wishId/video', requireAuth, asyncHandler(async (req, res) 
 
 router.get('/wishes/:wishId/video', requireAuth, asyncHandler(async (req, res) => {
   const userId = req.user!.userId;
+  const isAdmin = req.user!.role === 'admin';
   const wishId = Number(req.params.wishId);
 
   const wish = await store.getById<any>('wishes', wishId);
-  if (!wish || wish.user_id !== userId) {
+  if (!wish || (!isAdmin && wish.user_id !== userId)) {
     res.status(404).json({ error: 'Wish not found.' });
     return;
   }
@@ -595,6 +622,110 @@ router.get('/admin/export/csv', requireAdmin, asyncHandler(async (req, res) => {
   res.setHeader('Content-Type', 'text/csv');
   res.setHeader('Content-Disposition', 'attachment; filename=jyot-users.csv');
   res.send(csv);
+}));
+
+// ── Admin: User Management ────────────────────────────────────
+router.get('/admin/users', requireAdmin, asyncHandler(async (req, res) => {
+  const allUsers = await store.all<any>('users');
+
+  const usersWithWishes = await Promise.all(allUsers.map(async (u: any) => {
+    const wishes = await store.where<any>('wishes', w => w.user_id === u.id);
+    const readings = await store.where<any>('palm_readings', r => r.user_id === u.id);
+    const subscriptions = await store.where<any>('subscriptions', s => s.user_id === u.id);
+    const { password_hash, ...safe } = u;
+    return {
+      ...safe,
+      wishCount: wishes.length,
+      palmReadingCount: readings.length,
+      palmReadings: readings.map(r => ({ id: r.id, created_at: r.created_at, reading_text: r.reading_text?.slice(0, 200), hasImage: !!r.image_path })),
+      subscription: subscriptions.length > 0 ? subscriptions[0] : null,
+    };
+  }));
+
+  res.json(usersWithWishes);
+}));
+
+router.post('/admin/users/:id/suspend', requireAdmin, asyncHandler(async (req, res) => {
+  const userId = Number(req.params.id);
+  const { suspendedUntil, reason } = req.body;
+
+  const user = await store.getById<any>('users', userId);
+  if (!user) { res.status(404).json({ error: 'User not found.' }); return; }
+
+  await store.update('users', userId, {
+    is_suspended: true,
+    suspended_until: suspendedUntil || null,
+    suspension_reason: reason || '',
+    is_banned: false,
+  });
+
+  res.json({ success: true, message: `User #${userId} suspended${suspendedUntil ? ` until ${suspendedUntil}` : ''}.` });
+}));
+
+router.post('/admin/users/:id/unsuspend', requireAdmin, asyncHandler(async (req, res) => {
+  const userId = Number(req.params.id);
+
+  const user = await store.getById<any>('users', userId);
+  if (!user) { res.status(404).json({ error: 'User not found.' }); return; }
+
+  await store.update('users', userId, { is_suspended: false, suspended_until: null, suspension_reason: '' });
+
+  res.json({ success: true, message: `User #${userId} unsuspended.` });
+}));
+
+router.post('/admin/users/:id/ban', requireAdmin, asyncHandler(async (req, res) => {
+  const userId = Number(req.params.id);
+  const { reason } = req.body;
+
+  const user = await store.getById<any>('users', userId);
+  if (!user) { res.status(404).json({ error: 'User not found.' }); return; }
+
+  await store.update('users', userId, {
+    is_banned: true,
+    ban_reason: reason || '',
+    is_suspended: false,
+    suspended_until: null,
+  });
+
+  res.json({ success: true, message: `User #${userId} permanently banned.` });
+}));
+
+router.post('/admin/users/:id/unban', requireAdmin, asyncHandler(async (req, res) => {
+  const userId = Number(req.params.id);
+
+  const user = await store.getById<any>('users', userId);
+  if (!user) { res.status(404).json({ error: 'User not found.' }); return; }
+
+  await store.update('users', userId, { is_banned: false });
+
+  res.json({ success: true, message: `User #${userId} unbanned.` });
+}));
+
+// ── Admin: View Palm Reading Image ───────────────────────────
+router.get('/admin/palm-readings/:id/image', requireAdmin, asyncHandler(async (req, res) => {
+  const readingId = Number(req.params.id);
+
+  const reading = await store.getById<any>('palm_readings', readingId);
+  if (!reading || !reading.image_path) {
+    res.status(404).json({ error: 'Image not found.' });
+    return;
+  }
+
+  if (!isStorageConfigured()) {
+    res.status(501).json({ error: 'Storage not configured.' });
+    return;
+  }
+
+  const { data } = await supabaseAdmin!.storage
+    .from(BUCKET_NAME)
+    .createSignedUrl(reading.image_path, 86400);
+
+  if (!data) {
+    res.status(404).json({ error: 'Image file not found in storage.' });
+    return;
+  }
+
+  res.json({ url: data.signedUrl });
 }));
 
 export default router;

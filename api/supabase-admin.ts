@@ -26,7 +26,7 @@ export async function ensureBucket() {
   const { error } = await supabaseAdmin.storage.createBucket(BUCKET_NAME, {
     public: false,
     fileSizeLimit: 52428800, // 50 MB
-    allowedMimeTypes: ['video/webm', 'video/mp4', 'video/quicktime', 'video/x-matroska'],
+    allowedMimeTypes: ['video/webm', 'video/mp4', 'video/quicktime', 'video/x-matroska', 'image/jpeg', 'image/png', 'image/webp'],
   });
   return !error;
 }

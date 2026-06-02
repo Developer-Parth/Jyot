@@ -10,10 +10,11 @@ export interface Reading {
 }
 
 export class ReadingModel {
-  static async create(data: { reading_text: string; user_id?: number }): Promise<number> {
+  static async create(data: { reading_text: string; user_id?: number; image_path?: string }): Promise<number> {
     const item = await store.create('palm_readings', {
       reading_text: data.reading_text,
       user_id: data.user_id || null,
+      image_path: data.image_path || '',
     });
     return item.id;
   }
