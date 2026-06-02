@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'motion/react';
-import { Shield, Search, Eye, EyeOff, LogOut, FileJson, FileSpreadsheet, Ban, RotateCcw, AlertTriangle, Undo2, Calendar, Clock, XCircle, Image } from 'lucide-react';
+import { Shield, Search, Eye, EyeOff, LogOut, FileJson, FileSpreadsheet, Ban, RotateCcw, AlertTriangle, Undo2, Calendar, Clock, XCircle, Image, Trash2, History } from 'lucide-react';
 
 type Stats = {
   totalUsers: number;
@@ -31,6 +31,15 @@ type AdminUser = {
   subscription: any;
 };
 
+type LogItem = {
+  id: number;
+  action: string;
+  target_user_id: number;
+  target_name: string;
+  details: string;
+  created_at: string;
+};
+
 export default function AdminDashboard() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -50,6 +59,8 @@ export default function AdminDashboard() {
   const [banModal, setBanModal] = useState<AdminUser | null>(null);
   const [message, setMessage] = useState('');
   const [imageModal, setImageModal] = useState<{ url: string; readingId: number } | null>(null);
+  const [logs, setLogs] = useState<LogItem[]>([]);
+  const [showLogs, setShowLogs] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -202,6 +213,36 @@ export default function AdminDashboard() {
     }
   };
 
+  const fetchLogs = useCallback(async () => {
+    try {
+      const res = await fetch('/api/admin/logs', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      setLogs(await res.json());
+    } catch {}
+  }, [token]);
+
+  const handleDelete = async (u: AdminUser) => {
+    if (!window.confirm(`Permanently delete User #${u.id} (${u.name || 'Unknown'}) and ALL their data? Wishes, jaaps, palm readings, and subscriptions will be erased. This CANNOT be undone.`)) return;
+    setActionLoading(u.id);
+    setError('');
+    try {
+      const res = await fetch(`/api/admin/users/${u.id}/delete`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setMessage(data.message);
+      fetchUsers();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const viewPalmImage = async (readingId: number) => {
     try {
       const res = await fetch(`/api/admin/palm-readings/${readingId}/image`, {
@@ -340,6 +381,29 @@ export default function AdminDashboard() {
 
         {error && <p className="text-sm text-red-600 text-center mb-4">{error}</p>}
 
+        <button onClick={() => { setShowLogs(!showLogs); if (!showLogs && logs.length === 0) fetchLogs(); }} className="w-full flex items-center justify-center gap-2 py-2.5 mb-4 rounded-xl border border-amber-200/70 bg-[#fff8ea]/80 text-stone-600 text-xs font-medium hover:bg-amber-50 transition-colors">
+          <History className="w-4 h-4" /> {showLogs ? 'Hide' : 'View'} Admin Action Log ({logs.length})
+        </button>
+
+        {showLogs && (
+          <div className="mb-4 bg-[#fff8ea]/90 backdrop-blur-md rounded-xl border border-amber-200/70 p-3 max-h-60 overflow-y-auto space-y-1.5">
+            {logs.length === 0 ? (
+              <p className="text-xs text-stone-400 text-center py-4">No actions logged yet.</p>
+            ) : (
+              logs.map(log => (
+                <div key={log.id} className="text-[11px] text-stone-600 flex items-start gap-2">
+                  <span className="shrink-0 text-stone-400">{new Date(log.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className={`font-medium uppercase ${log.action === 'ban' ? 'text-red-600' : log.action === 'suspend' ? 'text-amber-600' : log.action === 'delete' ? 'text-rose-700' : log.action === 'unsuspend' || log.action === 'unban' ? 'text-emerald-600' : 'text-stone-600'}`}>{log.action}</span>
+                  <span className="truncate">
+                    {log.target_name || `User #${log.target_user_id}`}
+                    {log.details ? ` — ${log.details}` : ''}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+
         <div className="space-y-2">
           {filteredUsers.map((u, i) => (
             <motion.div key={u.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.02 }} className={`bg-[#fff8ea]/90 backdrop-blur-md rounded-xl border p-3 ${u.is_banned ? 'border-red-300' : u.is_suspended ? 'border-amber-300' : 'border-amber-200/70'}`}>
@@ -376,9 +440,14 @@ export default function AdminDashboard() {
 
               <div className="flex gap-1.5 mt-2">
                 {u.is_banned ? (
-                  <button onClick={() => handleUnban(u.id)} disabled={actionLoading === u.id} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-100 text-emerald-700 text-[10px] font-medium hover:bg-emerald-200 transition-colors disabled:opacity-50">
-                    <Undo2 className="w-3 h-3" /> {actionLoading === u.id ? '...' : 'Unban'}
-                  </button>
+                  <>
+                    <button onClick={() => handleUnban(u.id)} disabled={actionLoading === u.id} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-100 text-emerald-700 text-[10px] font-medium hover:bg-emerald-200 transition-colors disabled:opacity-50">
+                      <Undo2 className="w-3 h-3" /> {actionLoading === u.id ? '...' : 'Unban'}
+                    </button>
+                    <button onClick={() => handleDelete(u)} disabled={actionLoading === u.id} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-100 text-rose-800 text-[10px] font-medium hover:bg-red-200 transition-colors disabled:opacity-50">
+                      <Trash2 className="w-3 h-3" /> {actionLoading === u.id ? '...' : 'Delete'}
+                    </button>
+                  </>
                 ) : u.is_suspended ? (
                   <>
                     <button onClick={() => handleUnsuspend(u.id)} disabled={actionLoading === u.id} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-100 text-emerald-700 text-[10px] font-medium hover:bg-emerald-200 transition-colors disabled:opacity-50">
@@ -386,6 +455,9 @@ export default function AdminDashboard() {
                     </button>
                     <button onClick={() => setBanModal(u)} disabled={actionLoading === u.id} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-100 text-red-700 text-[10px] font-medium hover:bg-red-200 transition-colors disabled:opacity-50">
                       <Ban className="w-3 h-3" /> Ban
+                    </button>
+                    <button onClick={() => handleDelete(u)} disabled={actionLoading === u.id} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-100 text-rose-800 text-[10px] font-medium hover:bg-red-200 transition-colors disabled:opacity-50">
+                      <Trash2 className="w-3 h-3" /> {actionLoading === u.id ? '...' : 'Delete'}
                     </button>
                   </>
                 ) : (
@@ -395,6 +467,9 @@ export default function AdminDashboard() {
                     </button>
                     <button onClick={() => setBanModal(u)} disabled={actionLoading === u.id} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-100 text-red-700 text-[10px] font-medium hover:bg-red-200 transition-colors disabled:opacity-50">
                       <Ban className="w-3 h-3" /> Ban
+                    </button>
+                    <button onClick={() => handleDelete(u)} disabled={actionLoading === u.id} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-100 text-rose-800 text-[10px] font-medium hover:bg-red-200 transition-colors disabled:opacity-50">
+                      <Trash2 className="w-3 h-3" /> {actionLoading === u.id ? '...' : 'Delete'}
                     </button>
                   </>
                 )}

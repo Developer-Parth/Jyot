@@ -625,6 +625,14 @@ router.get('/admin/export/csv', requireAdmin, asyncHandler(async (req, res) => {
 }));
 
 // ── Admin: User Management ────────────────────────────────────
+async function logAdminAction(action: string, targetUserId: number | null, targetName: string, details: string) {
+  try {
+    await store.create('admin_logs', { action, target_user_id: targetUserId, target_name: targetName, details });
+  } catch (e: any) {
+    console.warn('[ADMIN] Failed to log action:', e.message);
+  }
+}
+
 router.get('/admin/users', requireAdmin, asyncHandler(async (req, res) => {
   const allUsers = await store.all<any>('users');
 
@@ -659,7 +667,10 @@ router.post('/admin/users/:id/suspend', requireAdmin, asyncHandler(async (req, r
     is_banned: false,
   });
 
-  res.json({ success: true, message: `User #${userId} suspended${suspendedUntil ? ` until ${suspendedUntil}` : ''}.` });
+  const untilText = suspendedUntil ? ` until ${suspendedUntil}` : ' (indefinite)';
+  await logAdminAction('suspend', userId, user.name || '', reason || `Suspended${untilText}`);
+
+  res.json({ success: true, message: `User #${userId} suspended${untilText}.` });
 }));
 
 router.post('/admin/users/:id/unsuspend', requireAdmin, asyncHandler(async (req, res) => {
@@ -669,6 +680,7 @@ router.post('/admin/users/:id/unsuspend', requireAdmin, asyncHandler(async (req,
   if (!user) { res.status(404).json({ error: 'User not found.' }); return; }
 
   await store.update('users', userId, { is_suspended: false, suspended_until: null, suspension_reason: '' });
+  await logAdminAction('unsuspend', userId, user.name || '', '');
 
   res.json({ success: true, message: `User #${userId} unsuspended.` });
 }));
@@ -687,6 +699,8 @@ router.post('/admin/users/:id/ban', requireAdmin, asyncHandler(async (req, res) 
     suspended_until: null,
   });
 
+  await logAdminAction('ban', userId, user.name || '', reason || 'Permanent ban');
+
   res.json({ success: true, message: `User #${userId} permanently banned.` });
 }));
 
@@ -696,9 +710,36 @@ router.post('/admin/users/:id/unban', requireAdmin, asyncHandler(async (req, res
   const user = await store.getById<any>('users', userId);
   if (!user) { res.status(404).json({ error: 'User not found.' }); return; }
 
-  await store.update('users', userId, { is_banned: false });
+  await store.update('users', userId, { is_banned: false, ban_reason: '' });
+  await logAdminAction('unban', userId, user.name || '', '');
 
   res.json({ success: true, message: `User #${userId} unbanned.` });
+}));
+
+router.post('/admin/users/:id/delete', requireAdmin, asyncHandler(async (req, res) => {
+  const userId = Number(req.params.id);
+
+  const user = await store.getById<any>('users', userId);
+  if (!user) { res.status(404).json({ error: 'User not found.' }); return; }
+
+  const name = user.name || `User #${userId}`;
+
+  // Delete all user data
+  await store.deleteWhere('wishes', (w: any) => w.user_id === userId);
+  await store.deleteWhere('jaaps', (j: any) => j.user_id === userId);
+  await store.deleteWhere('palm_readings', (r: any) => r.user_id === userId);
+  await store.deleteWhere('subscriptions', (s: any) => s.user_id === userId);
+  await store.delete('users', userId);
+
+  await logAdminAction('delete', userId, name, 'User and all data permanently deleted');
+
+  res.json({ success: true, message: `User #${userId} (${name}) and all their data permanently deleted.` });
+}));
+
+// ── Admin: Action Log ─────────────────────────────────────────
+router.get('/admin/logs', requireAdmin, asyncHandler(async (req, res) => {
+  const logs = await store.all<any>('admin_logs');
+  res.json(logs.reverse()); // newest first
 }));
 
 // ── Admin: View Palm Reading Image ───────────────────────────
