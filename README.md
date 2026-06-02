@@ -32,27 +32,27 @@
   <img src="2.jpeg" width="160" alt="Onboarding - Step 2" />
   <img src="3.jpeg" width="160" alt="Onboarding - Step 3" />
   <img src="4.jpeg" width="160" alt="Onboarding - Step 4" />
+  <img src="5.jpeg" width="160" alt="Onboarding" />
 </p>
 
 <p align="center">
-  <img src="5.jpeg" width="160" alt="Login Screen" />
-  <img src="6.jpeg" width="160" alt="Home Screen" />
-  <img src="7.jpeg" width="160" alt="Jaap Mala Counter" />
-  <img src="8.jpeg" width="160" alt="Jaap Session" />
+  <img src="6.jpeg" width="160" alt="Login Screen" />
+  <img src="7.jpeg" width="160" alt="Home Screen" />
+  <img src="8.jpeg" width="160" alt="Jaap Maala Counter" />
 </p>
 
 <p align="center">
-  <img src="9.jpeg" width="160" alt="Palm Reading" />
-  <img src="10.jpeg" width="160" alt="Palm Reading Result" />
-  <img src="11.jpeg" width="160" alt="Puja Library" />
-  <img src="12.jpeg" width="160" alt="Puja Details" />
+  <img src="9.jpeg" width="160" alt="Wish Recording" />
+  <img src="10.jpeg" width="160" alt="Wish Recording" />
+  <img src="11.jpeg" width="160" alt="Palm Reading" />
+  <img src="12.jpeg" width="160" alt="Palm Reading Results" />
+  <img src="13.jpeg" width="160" alt="Palm Reading Results" />
 </p>
 
 <p align="center">
-  <img src="13.jpeg" width="160" alt="Puja Samagri Checklist" />
-  <img src="14.jpeg" width="160" alt="Wish Recording" />
-  <img src="15.jpeg" width="160" alt="Wish List" />
-  <img src="16.jpeg" width="160" alt="Help & Profile" />
+  <img src="14.jpeg" width="160" alt="Puja Vidhi" />
+  <img src="15.jpeg" width="160" alt="Help & Profile" />
+  <img src="16.jpeg" width="160" alt="Subscriptions" />
 </p>
 
 ### Panchang (Vedic Almanac)
