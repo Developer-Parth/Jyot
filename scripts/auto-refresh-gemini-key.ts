@@ -46,30 +46,24 @@ function bezierPoint(t: number, p0: number, p1: number, p2: number, p3: number):
   return u * u * u * p0 + 3 * u * u * t * p1 + 3 * u * t * t * p2 + t * t * t * p3;
 }
 
-async function humanLikeMove(page: any, el: any) {
-  // Get element center
-  const box = await el.boundingBox();
-  if (!box) return;
-  const targetX = box.x + box.width / 2;
-  const targetY = box.y + box.height / 2;
-
-  // Get current mouse position (default to top-left if unknown)
-  let startX: number, startY: number;
+async function getLastMousePos(page: any): Promise<{x: number, y: number}> {
   try {
-    const pos = await page.evaluate(() => ({ x: (window as any).__lastMouseX || 0, y: (window as any).__lastMouseY || 0 }));
-    startX = pos.x;
-    startY = pos.y;
+    return await page.evaluate(() => ({ x: (window as any).__lastMouseX || 0, y: (window as any).__lastMouseY || 0 }));
   } catch {
-    startX = 0;
-    startY = 0;
+    return { x: 0, y: 0 };
   }
+}
+
+async function humanLikeMoveCoords(page: any, targetX: number, targetY: number) {
+  const pos = await getLastMousePos(page);
+  let startX = pos.x;
+  let startY = pos.y;
 
   // If start is too close to target, add offset so we get a nice curve
   const dx = targetX - startX;
   const dy = targetY - startY;
   const dist = Math.sqrt(dx * dx + dy * dy);
   if (dist < 50) {
-    // Push start back to create a visible swing
     startX = targetX + rand(-300, -150);
     startY = targetY + rand(-200, -100);
   }
@@ -112,10 +106,7 @@ async function humanLikeMove(page: any, el: any) {
 
   // Small random jitter before click (simulating micro-adjustments)
   for (let j = 0; j < randInt(1, 3); j++) {
-    await page.mouse.move(
-      targetX + rand(-2, 2),
-      targetY + rand(-2, 2),
-    );
+    await page.mouse.move(targetX + rand(-2, 2), targetY + rand(-2, 2));
     await sleep(rand(20, 50));
   }
 
@@ -124,6 +115,12 @@ async function humanLikeMove(page: any, el: any) {
     (window as any).__lastMouseX = x;
     (window as any).__lastMouseY = y;
   }, { x: targetX, y: targetY });
+}
+
+async function humanLikeMove(page: any, el: any) {
+  const box = await el.boundingBox();
+  if (!box) return;
+  await humanLikeMoveCoords(page, box.x + box.width / 2, box.y + box.height / 2);
 }
 
 async function humanClick(page: any, el: any) {
@@ -153,13 +150,13 @@ async function runVercelCmd(args: string[]): Promise<string> {
 
 async function ensureLoggedIn(page: any): Promise<boolean> {
   log('Checking login status...');
-  await page.goto(AI_STUDIO_URL, { waitUntil: 'networkidle' });
+  await page.goto(AI_STUDIO_URL, { waitUntil: 'networkidle', timeout: 0 });
   const url = page.url();
   if (url.includes('accounts.google.com') || url.includes('signin') || url.includes('SignIn')) {
     log('Not logged in. Opening browser for you to sign in...');
     log('Please log into your Google account in the opened browser window.');
     log('After signing in successfully, this script will continue automatically.');
-    await page.waitForFunction(() => !window.location.href.includes('accounts.google.com'));
+    await page.waitForFunction(() => !window.location.href.includes('accounts.google.com'), { timeout: 0 });
   }
   log('Logged in successfully!');
   return true;
@@ -170,89 +167,195 @@ async function wait10() {
   await sleep(10000);
 }
 
+async function dumpPageStructure(page: any) {
+  // Dump key areas of the page for debugging
+  const info = await page.evaluate(() => {
+    // Find all visible elements that contain "AIza"
+    const results: string[] = [];
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let node: Text | null;
+    while (node = walker.nextNode() as Text | null) {
+      const t = node.textContent || '';
+      if (t.includes('AIza') && node.parentElement && (node.parentElement as HTMLElement).offsetParent !== null) {
+        const p = node.parentElement;
+        const tag = p.tagName.toLowerCase();
+        const cls = (p.className || '').substring(0, 120);
+        const parentTag = p.parentElement?.tagName.toLowerCase() || '';
+        const parentCls = (p.parentElement?.className || '').substring(0, 80);
+        const grandparentTag = p.parentElement?.parentElement?.tagName.toLowerCase() || '';
+        const allBtns = p.closest('[class*="card"], [class*="row"], [class*="item"], [class*="list"], li, tr, [role="listitem"]');
+        results.push(`AIza in <${tag}.${cls}> parent:<${parentTag}.${parentCls}> gp:<${grandparentTag}> container:${allBtns ? '<' + allBtns.tagName.toLowerCase() + '>' : 'none'}`);
+        if (results.length >= 20) break;
+      }
+    }
+    return results;
+  });
+  
+  log('--- Page structure around AIza keys ---');
+  for (const line of info) log(line);
+  
+  // Also dump all buttons with their text and aria-labels
+  const btns = await page.evaluate(() => {
+    const buttons = document.querySelectorAll('button, [role="button"], [role="menuitem"]');
+    return Array.from(buttons).slice(0, 40).map(b => {
+      const tag = b.tagName.toLowerCase();
+      const text = (b.textContent || '').substring(0, 40).trim();
+      const aria = b.getAttribute('aria-label') || '';
+      const cls = (b.className || '').substring(0, 60);
+      const visible = (b as HTMLElement).offsetParent !== null;
+      return `${visible ? 'VIS' : 'HID'} <${tag}> text="${text}" aria="${aria}" class="${cls}"`;
+    });
+  });
+  log('--- Page buttons ---');
+  for (const b of btns) log(b);
+}
+
+async function getKeyRows(page: any): Promise<number> {
+  return page.evaluate(() => {
+    // Walk all text nodes for "AIza" and map their containers
+    const containers = new Set<Element>();
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let node: Text | null;
+    while (node = walker.nextNode() as Text | null) {
+      if ((node.textContent || '').includes('AIza')) {
+        let el = node.parentElement;
+        let depth = 0;
+        while (el && depth < 15) {
+          const tag = el.tagName.toLowerCase();
+          const cls = el.className || '';
+          // Look for container elements that typically hold a key row
+          if (tag.match(/^(li|tr|article|section)$/) ||
+              cls.includes('card') || cls.includes('row') || cls.includes('item') ||
+              cls.includes('list') || el.getAttribute('role') === 'listitem') {
+            containers.add(el);
+            break;
+          }
+          el = el.parentElement;
+          depth++;
+        }
+      }
+    }
+    return containers.size;
+  });
+}
+
 async function deleteAllKeys(page: any) {
   log('Deleting existing API keys...');
+
+  // Dump page structure for debugging
+  if (DEBUG || true) {
+    await dumpPageStructure(page);
+  }
+
   let deleted = 0;
 
   while (true) {
-    // Try finding any delete-able key on the page
-    // First check for direct delete buttons (trash icons, "Delete" buttons)
-    const directDel = page.locator('button').filter({ hasText: DELETE_MENU_TEXT });
-    const directCount = await directDel.count();
-    if (directCount > 0) {
-      for (let i = 0; i < directCount; i++) {
-        const btn = directDel.nth(0);
-        if (await btn.count() === 0) break;
-        log(`Deleting key #${deleted + 1}...`);
-        await humanClick(page, btn);
-        await sleep(rand(800, 1500));
+    // Find a menu/delete button within a key row using DOM traversal
+    const target = await page.evaluate(() => {
+      // Walk text nodes for "AIza" and find the nearest container with a menu/delete button
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      let node: Text | null;
+      while (node = walker.nextNode() as Text | null) {
+        if (!(node.textContent || '').includes('AIza')) continue;
+        if (!node.parentElement || (node.parentElement as HTMLElement).offsetParent === null) continue;
 
-        // Confirm deletion
-        const confirm = page.locator('button, [role="button"]').filter({ hasText: CONFIRM_DELETE_TEXT });
-        if (await confirm.count() > 0) {
-          await humanClick(page, confirm.first());
-          await sleep(rand(800, 1500));
+        let el: HTMLElement | null = node.parentElement;
+        let depth = 0;
+        while (el && depth < 15) {
+          // Look for menu/delete buttons within this element
+          const menuBtn = el.querySelector<HTMLElement>(
+            'button[aria-label*="more" i], button[aria-label*="menu" i], [role="button"][aria-label*="more" i]'
+          );
+          if (menuBtn && menuBtn.offsetParent !== null) {
+            const rect = menuBtn.getBoundingClientRect();
+            return { found: 'menu', x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+          }
+          const delBtn = el.querySelector<HTMLElement>(
+            'button[aria-label*="delete" i], [aria-label*="delete" i][role="button"]'
+          );
+          if (delBtn && delBtn.offsetParent !== null) {
+            const rect = delBtn.getBoundingClientRect();
+            return { found: 'delete', x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+          }
+          el = el.parentElement;
+          depth++;
         }
-        deleted++;
-        log(`Deleted key #${deleted}`);
-        await wait10();
       }
-      continue;
+      return { found: 'none', x: 0, y: 0 };
+    });
+
+    if (target.found === 'none') {
+      log('No more key rows with delete menus found.');
+      break;
     }
 
-    // Check for three-dot menus
-    const menus = page.locator('button[aria-label*="more"], button[aria-label*="menu"]');
-    const menuCount = await menus.count();
-    if (menuCount > 0) {
-      for (let i = 0; i < menuCount; i++) {
-        const menu = menus.nth(0);
-        if (await menu.count() === 0) break;
-        log(`Opening menu for key #${deleted + 1}...`);
-        await humanClick(page, menu);
-        await sleep(rand(1000, 2000));
+    // Click via mouse move (human-like) at the target coordinates
+    log(`Clicking ${target.found} button for key #${deleted + 1}...`);
+    const box = { x: target.x - 10, y: target.y - 10, width: 20, height: 20 };
+    await humanLikeMoveCoords(page, target.x, target.y);
+    await sleep(rand(50, 150));
+    await page.mouse.click(target.x, target.y);
+    debug(`clicked at ${target.x}, ${target.y}`);
+    await sleep(rand(2000, 3000));
 
-        const menuDel = page.locator('[role="menuitem"], li, [class*="menu"]').filter({ hasText: DELETE_MENU_TEXT }).first();
-        if (await menuDel.count() > 0) {
-          await humanClick(page, menuDel);
-          await sleep(rand(800, 1500));
+    if (target.found === 'menu') {
+      // Menu was opened — now click "Delete" in the dropdown
+      const delOption = await page.evaluate(() => {
+        // Look for a visible menu item with "Delete" text
+        const items = document.querySelectorAll<HTMLElement>(
+          '[role="menuitem"], [role="option"], li, [class*="menu"] button, [class*="dropdown"] button'
+        );
+        for (const item of items) {
+          if (item.offsetParent === null) continue;
+          const text = (item.textContent || '').toLowerCase().trim();
+          if (text === 'delete' || text.startsWith('delete') || text.includes('delete key')) {
+            const rect = item.getBoundingClientRect();
+            return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+          }
         }
+        return null;
+      });
 
-        const confirm = page.locator('button, [role="button"]').filter({ hasText: CONFIRM_DELETE_TEXT });
-        if (await confirm.count() > 0) {
-          await humanClick(page, confirm.first());
-          await sleep(rand(800, 1500));
-        }
-        deleted++;
-        log(`Deleted key #${deleted}`);
-        await wait10();
+      if (delOption) {
+        log('Clicking "Delete" in menu...');
+        await humanLikeMoveCoords(page, delOption.x, delOption.y);
+        await sleep(rand(50, 150));
+        await page.mouse.click(delOption.x, delOption.y);
+        await sleep(rand(2000, 3000));
+      } else {
+        log('Could not find "Delete" option in menu. Pressing Escape.');
+        await page.keyboard.press('Escape');
+        await sleep(1000);
+        continue;
       }
-      continue;
     }
 
-    // Check for trash icon buttons
-    const trash = page.locator('button[aria-label*="delete"], button[title*="delete"]');
-    const trashCount = await trash.count();
-    if (trashCount > 0) {
-      for (let i = 0; i < trashCount; i++) {
-        const btn = trash.nth(0);
-        if (await btn.count() === 0) break;
-        log(`Deleting key #${deleted + 1} via trash icon...`);
-        await humanClick(page, btn);
-        await sleep(rand(800, 1500));
-
-        const confirm = page.locator('button, [role="button"]').filter({ hasText: CONFIRM_DELETE_TEXT });
-        if (await confirm.count() > 0) {
-          await humanClick(page, confirm.first());
-          await sleep(rand(800, 1500));
+    // Confirm deletion dialog
+    const confirmBtn = await page.evaluate(() => {
+      const btns = document.querySelectorAll<HTMLElement>('button, [role="button"]');
+      for (const btn of btns) {
+        if (btn.offsetParent === null) continue;
+        const t = (btn.textContent || '').toLowerCase().trim();
+        if (t === 'delete' || t === 'confirm' || t === 'yes' || t.startsWith('delete key') || t.startsWith('confirm delete')) {
+          const rect = btn.getBoundingClientRect();
+          return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
         }
-        deleted++;
-        log(`Deleted key #${deleted}`);
-        await wait10();
       }
-      continue;
+      return null;
+    });
+
+    if (confirmBtn) {
+      log('Confirming deletion...');
+      await humanLikeMoveCoords(page, confirmBtn.x, confirmBtn.y);
+      await sleep(rand(50, 150));
+      await page.mouse.click(confirmBtn.x, confirmBtn.y);
+      await sleep(rand(2000, 3000));
     }
 
-    break;
+    deleted++;
+    log(`Deleted key #${deleted}`);
+    log('Waiting 10 seconds before next action...');
+    await sleep(10000);
   }
 
   log(`Deleted ${deleted} existing key(s).`);
