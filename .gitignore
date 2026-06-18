@@ -22,3 +22,7 @@ android/app/build/
 *.key
 signing.properties
 local.properties
+.env.auto
+.browser-profile/
+
+.vercel
