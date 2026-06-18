@@ -81,7 +81,7 @@ async function ensureLoggedIn(page: any): Promise<boolean> {
     log('Please log into your Google account in the opened browser window.');
     log('After signing in successfully, this script will continue automatically.');
     // Wait for redirect away from accounts.google.com (no timeout)
-    await page.waitForURL((url: string) => !url.includes('accounts.google.com'));
+    await page.waitForFunction(() => !window.location.href.includes('accounts.google.com'));
   }
   log('Logged in successfully!');
   return true;
