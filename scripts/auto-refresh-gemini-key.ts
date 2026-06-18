@@ -15,7 +15,6 @@ const AI_STUDIO_URL = 'https://aistudio.google.com/apikey';
 const KEY_COUNT = 11;
 const DEBUG = process.argv.includes('--debug');
 
-// Text-based selectors – adjust if Google changes the UI
 const CREATE_BTN_TEXT = 'Create API Key';
 const DONE_BTN_TEXT = 'Done';
 const DELETE_MENU_TEXT = 'Delete';
@@ -31,6 +30,107 @@ function debug(msg: string) {
 
 async function sleep(ms: number) {
   return new Promise(r => setTimeout(r, ms));
+}
+
+function rand(min: number, max: number): number {
+  return Math.random() * (max - min) + min;
+}
+
+function randInt(min: number, max: number): number {
+  return Math.floor(rand(min, max + 1));
+}
+
+// Cubic bezier: B(t) = (1-t)^3*P0 + 3(1-t)^2*t*P1 + 3(1-t)*t^2*P2 + t^3*P3
+function bezierPoint(t: number, p0: number, p1: number, p2: number, p3: number): number {
+  const u = 1 - t;
+  return u * u * u * p0 + 3 * u * u * t * p1 + 3 * u * t * t * p2 + t * t * t * p3;
+}
+
+async function humanLikeMove(page: any, el: any) {
+  // Get element center
+  const box = await el.boundingBox();
+  if (!box) return;
+  const targetX = box.x + box.width / 2;
+  const targetY = box.y + box.height / 2;
+
+  // Get current mouse position (default to top-left if unknown)
+  let startX: number, startY: number;
+  try {
+    const pos = await page.evaluate(() => ({ x: (window as any).__lastMouseX || 0, y: (window as any).__lastMouseY || 0 }));
+    startX = pos.x;
+    startY = pos.y;
+  } catch {
+    startX = 0;
+    startY = 0;
+  }
+
+  // If start is too close to target, add offset so we get a nice curve
+  const dx = targetX - startX;
+  const dy = targetY - startY;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < 50) {
+    // Push start back to create a visible swing
+    startX = targetX + rand(-300, -150);
+    startY = targetY + rand(-200, -100);
+  }
+
+  // Generate 2 control points with random offsets to create "swinging" curves
+  const midX = (startX + targetX) / 2 + rand(-200, 200);
+  const midY = (startY + targetY) / 2 + rand(-150, 150);
+  const cp1x = startX + (midX - startX) * 0.3 + rand(-100, 100);
+  const cp1y = startY + (midY - startY) * 0.3 + rand(-80, 80);
+  const cp2x = midX + (targetX - midX) * 0.7 + rand(-120, 120);
+  const cp2y = midY + (targetY - midY) * 0.7 + rand(-100, 100);
+
+  // Number of steps varies with distance (30-60 steps)
+  const steps = Math.max(30, Math.min(60, Math.floor(dist / 5)));
+
+  // Move along bezier with varying speed
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    // Ease: slow at start and end, faster in middle
+    const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+
+    const x = bezierPoint(eased, startX, cp1x, cp2x, targetX);
+    const y = bezierPoint(eased, startY, cp1y, cp2y, targetY);
+
+    await page.mouse.move(x, y);
+
+    // Varying delays: 10-35ms between points, slower at start/end
+    const delay = t < 0.15 || t > 0.85 ? rand(20, 35) : rand(10, 25);
+    await sleep(delay);
+  }
+
+  // Subtle overshoot: move slightly past and come back
+  if (Math.random() > 0.4) {
+    const overshootX = targetX + rand(-8, 8);
+    const overshootY = targetY + rand(-8, 8);
+    await page.mouse.move(overshootX, overshootY, { steps: 3 });
+    await sleep(rand(30, 80));
+    await page.mouse.move(targetX, targetY, { steps: 2 });
+  }
+
+  // Small random jitter before click (simulating micro-adjustments)
+  for (let j = 0; j < randInt(1, 3); j++) {
+    await page.mouse.move(
+      targetX + rand(-2, 2),
+      targetY + rand(-2, 2),
+    );
+    await sleep(rand(20, 50));
+  }
+
+  // Store last position
+  await page.evaluate(({ x, y }) => {
+    (window as any).__lastMouseX = x;
+    (window as any).__lastMouseY = y;
+  }, { x: targetX, y: targetY });
+}
+
+async function humanClick(page: any, el: any) {
+  await humanLikeMove(page, el);
+  await sleep(rand(50, 150));
+  await el.click();
+  debug('clicked');
 }
 
 async function runVercelCmd(args: string[]): Promise<string> {
@@ -51,27 +151,6 @@ async function runVercelCmd(args: string[]): Promise<string> {
   });
 }
 
-async function findKeysOnPage(page: any): Promise<{ name: string; deleteButton: any }[]> {
-  const keys: { name: string; deleteButton: any }[] = [];
-  // Look for key rows – each row typically contains a truncated key starting with "AIza"
-  const rows = await page.locator('*:has-text("AIza")').all();
-  const seen = new Set<string>();
-  for (const row of rows) {
-    const text = await row.textContent();
-    if (!text || seen.has(text)) continue;
-    seen.add(text);
-    if (!text.includes('AIza')) continue;
-    // Try to find a delete button within/near this row
-    const deleteBtn = row.locator('button').or(row.locator('[role="menuitem"]')).filter({ hasText: DELETE_MENU_TEXT }).first();
-    const hasDelete = await deleteBtn.count();
-    keys.push({
-      name: text.trim().split('\n')[0].trim().substring(0, 40),
-      deleteButton: hasDelete > 0 ? deleteBtn : null,
-    });
-  }
-  return keys;
-}
-
 async function ensureLoggedIn(page: any): Promise<boolean> {
   log('Checking login status...');
   await page.goto(AI_STUDIO_URL, { waitUntil: 'networkidle' });
@@ -80,91 +159,102 @@ async function ensureLoggedIn(page: any): Promise<boolean> {
     log('Not logged in. Opening browser for you to sign in...');
     log('Please log into your Google account in the opened browser window.');
     log('After signing in successfully, this script will continue automatically.');
-    // Wait for redirect away from accounts.google.com (no timeout)
     await page.waitForFunction(() => !window.location.href.includes('accounts.google.com'));
   }
   log('Logged in successfully!');
   return true;
 }
 
+async function wait10() {
+  log('Waiting 10 seconds...');
+  await sleep(10000);
+}
+
 async function deleteAllKeys(page: any) {
   log('Deleting existing API keys...');
   let deleted = 0;
-  let maxIter = 30;
-  while (maxIter-- > 0) {
-    // Try clicking any visible delete button/icon
-    const deleteBtns = page.locator('button').filter({ hasText: DELETE_MENU_TEXT });
-    const count = await deleteBtns.count();
-    if (count === 0) {
-      // Maybe it's a three-dot menu first – try clicking any visible three-dot button
-      const menuBtns = page.locator('button[aria-label*="more"], button[aria-label*="menu"], button:has-text("more_vert")');
-      const menuCount = await menuBtns.count();
-      if (menuCount > 0) {
-        for (let i = 0; i < menuCount; i++) {
-          try {
-            await menuBtns.nth(i).click();
-            await sleep(500);
-            // Look for delete option in the menu
-            const menuDelete = page.locator('[role="menuitem"], .menu-item, li').filter({ hasText: DELETE_MENU_TEXT }).first();
-            if (await menuDelete.count() > 0) {
-              await menuDelete.click();
-              await sleep(300);
-              // Confirm deletion
-              const confirmBtn = page.locator('button, [role="button"]').filter({ hasText: CONFIRM_DELETE_TEXT });
-              if (await confirmBtn.count() > 0) {
-                await confirmBtn.first().click();
-                await sleep(500);
-                deleted++;
-                log(`Deleted key #${deleted}`);
-              }
-            }
-          } catch (e) {
-            debug(`Menu click error: ${e}`);
-          }
+
+  while (true) {
+    // Try finding any delete-able key on the page
+    // First check for direct delete buttons (trash icons, "Delete" buttons)
+    const directDel = page.locator('button').filter({ hasText: DELETE_MENU_TEXT });
+    const directCount = await directDel.count();
+    if (directCount > 0) {
+      for (let i = 0; i < directCount; i++) {
+        const btn = directDel.nth(0);
+        if (await btn.count() === 0) break;
+        log(`Deleting key #${deleted + 1}...`);
+        await humanClick(page, btn);
+        await sleep(rand(800, 1500));
+
+        // Confirm deletion
+        const confirm = page.locator('button, [role="button"]').filter({ hasText: CONFIRM_DELETE_TEXT });
+        if (await confirm.count() > 0) {
+          await humanClick(page, confirm.first());
+          await sleep(rand(800, 1500));
         }
-      } else {
-        // Maybe there are keys with simpler delete buttons (trash icons)
-        const trashBtns = page.locator('button[aria-label*="delete"], button[title*="delete"], button svg').filter({ has: page.locator('text=delete') });
-        const trashCount = await trashBtns.count();
-        if (trashCount > 0) {
-          for (let i = 0; i < trashCount; i++) {
-            try {
-              await trashBtns.nth(i).click();
-              await sleep(500);
-              const confirmBtn = page.locator('button, [role="button"]').filter({ hasText: CONFIRM_DELETE_TEXT });
-              if (await confirmBtn.count() > 0) {
-                await confirmBtn.first().click();
-                await sleep(500);
-                deleted++;
-                log(`Deleted key via trash #${deleted}`);
-              }
-            } catch (e) {
-              debug(`Trash click error: ${e}`);
-            }
-          }
-        } else {
-          // No more delete buttons found
-          break;
-        }
+        deleted++;
+        log(`Deleted key #${deleted}`);
+        await wait10();
       }
-    } else {
-      try {
-        await deleteBtns.first().click();
-        await sleep(300);
-        const confirmBtn = page.locator('button, [role="button"]').filter({ hasText: CONFIRM_DELETE_TEXT });
-        if (await confirmBtn.count() > 0) {
-          await confirmBtn.first().click();
-          await sleep(500);
-          deleted++;
-          log(`Deleted key #${deleted}`);
-        }
-      } catch (e) {
-        debug(`Delete click error: ${e}`);
-        break;
-      }
+      continue;
     }
-    await sleep(500);
+
+    // Check for three-dot menus
+    const menus = page.locator('button[aria-label*="more"], button[aria-label*="menu"]');
+    const menuCount = await menus.count();
+    if (menuCount > 0) {
+      for (let i = 0; i < menuCount; i++) {
+        const menu = menus.nth(0);
+        if (await menu.count() === 0) break;
+        log(`Opening menu for key #${deleted + 1}...`);
+        await humanClick(page, menu);
+        await sleep(rand(1000, 2000));
+
+        const menuDel = page.locator('[role="menuitem"], li, [class*="menu"]').filter({ hasText: DELETE_MENU_TEXT }).first();
+        if (await menuDel.count() > 0) {
+          await humanClick(page, menuDel);
+          await sleep(rand(800, 1500));
+        }
+
+        const confirm = page.locator('button, [role="button"]').filter({ hasText: CONFIRM_DELETE_TEXT });
+        if (await confirm.count() > 0) {
+          await humanClick(page, confirm.first());
+          await sleep(rand(800, 1500));
+        }
+        deleted++;
+        log(`Deleted key #${deleted}`);
+        await wait10();
+      }
+      continue;
+    }
+
+    // Check for trash icon buttons
+    const trash = page.locator('button[aria-label*="delete"], button[title*="delete"]');
+    const trashCount = await trash.count();
+    if (trashCount > 0) {
+      for (let i = 0; i < trashCount; i++) {
+        const btn = trash.nth(0);
+        if (await btn.count() === 0) break;
+        log(`Deleting key #${deleted + 1} via trash icon...`);
+        await humanClick(page, btn);
+        await sleep(rand(800, 1500));
+
+        const confirm = page.locator('button, [role="button"]').filter({ hasText: CONFIRM_DELETE_TEXT });
+        if (await confirm.count() > 0) {
+          await humanClick(page, confirm.first());
+          await sleep(rand(800, 1500));
+        }
+        deleted++;
+        log(`Deleted key #${deleted}`);
+        await wait10();
+      }
+      continue;
+    }
+
+    break;
   }
+
   log(`Deleted ${deleted} existing key(s).`);
 }
 
@@ -174,11 +264,11 @@ async function createKeys(page: any): Promise<string[]> {
 
   for (let i = 0; i < KEY_COUNT; i++) {
     log(`Creating key ${i + 1}/${KEY_COUNT}...`);
+
     // Click "Create API Key" button
     const createBtn = page.locator('button').filter({ hasText: CREATE_BTN_TEXT });
     const createCount = await createBtn.count();
     if (createCount === 0) {
-      // Try alternative: maybe it's an anchor or div styled as button
       const altBtn = page.locator('a, div, span').filter({ hasText: CREATE_BTN_TEXT }).first();
       if (await altBtn.count() === 0) {
         log(`Could not find "${CREATE_BTN_TEXT}" button. Dumping page...`);
@@ -186,33 +276,27 @@ async function createKeys(page: any): Promise<string[]> {
         debug(body?.substring(0, 2000) || 'empty');
         throw new Error(`Cannot find "${CREATE_BTN_TEXT}" button – selectors may need updating. Run with --debug to inspect.`);
       }
-      await altBtn.click();
+      await humanClick(page, altBtn);
     } else {
-      await createBtn.first().click();
+      await humanClick(page, createBtn.first());
     }
-    await sleep(2000);
+    await sleep(rand(2000, 3000));
 
-    // Wait for the dialog to appear and extract the key
-    // The key starts with "AIza" – find it in the dialog
+    // Extract the key from the dialog
     let keyValue: string | null = null;
     try {
-      // Try finding key in an input field
-      const keyInput = page.locator('input[readonly], input[value*="AIza"], input:not([type="password"])').filter({ has: page.locator('[value*="AIza"]') }).or(
-        page.locator('input[readonly], input:not([type="password"])').first()
-      );
+      const keyInput = page.locator('input[readonly], input:not([type="password"])').first();
       const inputValue = await keyInput.inputValue().catch(() => '');
       if (inputValue && inputValue.startsWith('AIza')) {
         keyValue = inputValue;
       }
-    } catch { /* try next approach */ }
+    } catch { /* try next */ }
 
     if (!keyValue) {
-      // Try finding key in any visible element containing "AIza"
       try {
         const keyEl = page.locator('text=AIza').first();
         const text = await keyEl.textContent();
         if (text) {
-          // Extract the key (AIza... up to whitespace or end)
           const match = text.match(/AIza[a-zA-Z0-9_-]+/);
           if (match) keyValue = match[0];
         }
@@ -220,9 +304,6 @@ async function createKeys(page: any): Promise<string[]> {
     }
 
     if (!keyValue) {
-      // Last resort: dump dialog content
-      const dialogText = await page.locator('[role="dialog"], .dialog, .modal, [class*="dialog"]').first().textContent().catch(() => '');
-      debug(`Dialog content: ${dialogText?.substring(0, 500)}`);
       const allText = await page.locator('body').textContent();
       const match = allText?.match(/AIza[a-zA-Z0-9_-]+/);
       if (match) keyValue = match[0];
@@ -238,22 +319,21 @@ async function createKeys(page: any): Promise<string[]> {
     newKeys.push(keyValue);
     log(`Key #${i + 1}: ${keyValue.substring(0, 15)}...`);
 
-    // Close the dialog by clicking "Done"
+    // Close dialog
     try {
       const doneBtn = page.locator('button').filter({ hasText: DONE_BTN_TEXT });
       if (await doneBtn.count() > 0) {
-        await doneBtn.first().click();
+        await humanClick(page, doneBtn.first());
       } else {
-        // Try clicking backdrop or close button
         const closeBtn = page.locator('button[aria-label*="close"], button[aria-label*="Close"]').first();
         if (await closeBtn.count() > 0) {
-          await closeBtn.click();
+          await humanClick(page, closeBtn);
         } else {
           await page.keyboard.press('Escape');
         }
       }
     } catch { await page.keyboard.press('Escape'); }
-    await sleep(1500);
+    await sleep(rand(2000, 3000));
   }
 
   log(`Created ${newKeys.length} new API keys.`);
@@ -263,8 +343,6 @@ async function createKeys(page: any): Promise<string[]> {
 function updateEnvFile(newKeys: string[]) {
   log('Updating .env file...');
   let envContent = fs.readFileSync(ENV_FILE, 'utf-8');
-
-  // Replace GEMINI_API_KEY through GEMINI_API_KEY_10
   const envKeys = ['GEMINI_API_KEY', ...Array.from({ length: 10 }, (_, i) => `GEMINI_API_KEY_${i + 1}`)];
   for (let i = 0; i < newKeys.length; i++) {
     const keyName = envKeys[i];
@@ -276,7 +354,6 @@ function updateEnvFile(newKeys: string[]) {
       envContent += `\n${replacement}`;
     }
   }
-
   fs.writeFileSync(ENV_FILE, envContent, 'utf-8');
   log('.env updated successfully.');
 }
@@ -286,7 +363,6 @@ async function deployToVercel(newKeys: string[]) {
   const envKeys = ['GEMINI_API_KEY', ...Array.from({ length: 10 }, (_, i) => `GEMINI_API_KEY_${i + 1}`)];
 
   try {
-    // Set each env var on Vercel (production only)
     for (let i = 0; i < newKeys.length; i++) {
       const keyName = envKeys[i];
       const keyValue = newKeys[i];
@@ -294,7 +370,6 @@ async function deployToVercel(newKeys: string[]) {
       await runVercelCmd(['env', 'add', keyName, 'production', '--force', '--value', keyValue, '--yes']);
     }
 
-    // Trigger deploy
     log('Triggering Vercel deploy...');
     await runVercelCmd(['deploy', '--prod']);
     log('Deploy triggered successfully!');
@@ -331,7 +406,6 @@ async function main() {
   log('=== Gemini API Key Auto-Refresh ===');
   log(`Project root: ${PROJECT_ROOT}`);
 
-  // 1. Load config
   if (!fs.existsSync(ENV_AUTO_FILE)) {
     log(`Missing .env.auto file. Creating template at ${ENV_AUTO_FILE}`);
     fs.writeFileSync(ENV_AUTO_FILE, `# Your Google account email (used to auto-fill login form)
@@ -340,44 +414,35 @@ GOOGLE_EMAIL=your.email@gmail.com
     log('Please fill in your email in .env.auto, then re-run this script.');
     return;
   }
-  const autoEnv = parse(fs.readFileSync(ENV_AUTO_FILE, 'utf-8'));
-  const googleEmail = autoEnv.GOOGLE_EMAIL || '';
 
-  // 2. Ensure browser profile dir
   if (!fs.existsSync(PROFILE_DIR)) {
     fs.mkdirSync(PROFILE_DIR, { recursive: true });
     log(`Created browser profile directory: ${PROFILE_DIR}`);
   }
 
-  // 3. Launch browser
   log('Launching browser...');
   const browser = await chromium.launchPersistentContext(PROFILE_DIR, {
     headless: false,
-    channel: undefined, // Use bundled Chromium
+    channel: undefined,
     args: ['--disable-blink-features=AutomationControlled'],
     viewport: { width: 1280, height: 900 },
   });
   const page = browser.pages()[0] || await browser.newPage();
 
   try {
-    // 4. Login
     const loggedIn = await ensureLoggedIn(page);
     if (!loggedIn) {
       log('Could not verify login. Aborting.');
       return;
     }
 
-    // 5. Delete existing keys
     await deleteAllKeys(page);
-    await sleep(1000);
+    await sleep(rand(1000, 2000));
 
-    // 6. Create new keys
     const newKeys = await createKeys(page);
 
-    // 7. Update .env
     updateEnvFile(newKeys);
 
-    // 8. Deploy to Vercel
     await ensureVercelCLI();
     await ensureVercelLogin();
     await deployToVercel(newKeys);
